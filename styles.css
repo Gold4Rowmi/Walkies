@@ -87,6 +87,12 @@ h2,h3{margin:0}
 .bar{display:grid; grid-template-columns:repeat(10,1fr); gap:2px; width:100%; max-width:120px; margin-top:2px}
 .bar i{display:block; height:6px; background:var(--grid)}
 .bar i.on{background:var(--shell); border:1px solid var(--ink)}
+.av{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; flex:none;
+  border:1px solid var(--ink); border-radius:4px; color:#16181D; font-family:var(--f-pixel); font-size:16px;
+  -webkit-font-smoothing:none; line-height:1; vertical-align:middle; margin-right:6px}
+.av.former{border-style:dotted; opacity:.55}
+.ico{flex:none}
+.btn .ico{margin:0}
 .tag{font-size:11px; padding:1px 6px; border-radius:4px; border:1px solid var(--ink); display:inline-block}
 .tag.ok{background:var(--ink); color:var(--on-ink)}
 .tag.slot{border-style:dashed}
@@ -146,7 +152,7 @@ h2,h3{margin:0}
 .plan .lbl:first-child{flex:1 1 100%}
 .plan input[type=time]{width:140px}
 .plan input[type=number]{width:92px}
-.cm{font-size:14px; border-top:1px solid var(--frame); padding:6px 0; display:flex; gap:8px; align-items:flex-start}
+.cm{font-size:14px; border-top:1px solid var(--frame); padding:8px 0; display:flex; gap:0; align-items:center}
 .cm .inf{gap:0}
 .sugg{border:1px dashed var(--frame); border-radius:6px; padding:10px; background:var(--sunken); display:flex; flex-direction:column; gap:8px}
 .nearby{display:flex; flex-direction:column; gap:6px; padding-bottom:8px; border-bottom:1px solid var(--frame)}

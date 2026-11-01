@@ -211,6 +211,45 @@
   }
   function sceneFor(kind) { return kind === 'travel' ? 'plane' : 'walk'; }
 
+  // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
+  var ICONS = {
+    close: ['........','.#....#.','..#..#..','...##...','...##...','..#..#..','.#....#.','........'],
+    check: ['........','.......#','......##','.#...##.','.##.##..','..###...','...#....','........'],
+    paw:   ['........','.##..##.','.##..##.','........','..####..','.######.','.######.','..####..'],
+    pencil:['........','.....###','....###.','...###..','..###...','.###....','.##.....','........'],
+    send:  ['........','....#...','....##..','.######.','.######.','....##..','....#...','........'],
+    back:  ['........','...#....','..##....','.######.','.######.','..##....','...#....','........'],
+    menu:  ['........','.######.','........','.######.','........','.######.','........','........'],
+    info:  ['........','...##...','........','..###...','...##...','...##...','..####..','........'],
+    plus:  ['........','...##...','...##...','.######.','.######.','...##...','...##...','........']
+  };
+  function icon(name, size) {
+    var g = ICONS[name] || ICONS.info, out = '';
+    g.forEach(function (row, y) {
+      for (var x = 0; x < 8; x++) if (row[x] === '#') out += '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>';
+    });
+    return '<svg class="px ico" width="' + (size || 24) + '" height="' + (size || 24) + '" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true">' + out + '</svg>';
+  }
+
+  // ---------- Avatars: a colour and an initial, so names stop eating the row ----------
+  var AV = ['#F26B5B', '#2FC7A1', '#F0548C', '#9BCB3B', '#F4C430', '#B497F2'];
+  function hashOf(s) {
+    var h = 0;
+    for (var i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  // The name still reaches anyone who hovers, long-presses, or uses a screen reader.
+  function avatar(uid) {
+    var m = S.data.members.find(function (x) { return x.user_id === uid; });
+    var name = m ? m.display_name : 'Someone';
+    var gone = m ? !isActive(m) : true;
+    var label = name + (gone ? ' (former member)' : '');
+    var letter = (name.trim().charAt(0) || '?').toUpperCase();
+    return '<span class="av' + (gone ? ' former' : '') + '" style="background:' + AV[hashOf(uid) % AV.length] + '"'
+      + ' title="' + esc(label) + '" aria-label="' + esc(label) + '" role="img"'
+      + '>' + esc(letter) + '</span>';
+  }
+
   // ---------- Helpers ----------
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -351,10 +390,9 @@
       + '<button class="dogbtn" id="headDog" data-act="secret" aria-label="Rommel">' + dogSVG('idle', 40, true) + '</button>'
       + '<span class="pixel appname">Walkies</span><span class="spacer"></span>'
       + (inTrip
-          ? '<button class="btn icon" data-act="add-open" aria-label="Add" title="Add"><span style="font-size:20px;line-height:1">+</span></button>'
-            + '<button class="btn" data-act="trip-open">Trip</button>'
-          : '<button class="btn icon" data-act="about" aria-label="About" title="About">'
-            + '<svg class="px" width="16" height="16" viewBox="0 0 8 8" aria-hidden="true"><path fill="currentColor" d="M3 0h2v2H3zM2 3h3v4H2zM2 7h4v1H2z"/></svg></button>'
+          ? '<button class="btn icon" data-act="add-open" aria-label="Add something to the trip" title="Add">' + icon('plus') + '</button>'
+            + '<button class="btn icon" data-act="trip-open" aria-label="Trip, people and settings" title="Trip">' + icon('menu') + '</button>'
+          : '<button class="btn icon" data-act="about" aria-label="About Walkies" title="About">' + icon('info') + '</button>'
             + '<button class="btn" data-act="signout" data-sfx="back">Sign out</button>')
       + '</header>';
   }
@@ -407,7 +445,7 @@
     return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '">'
       + '<span class="sc">' + sceneSVG(d.scene) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + esc(nameOf(d.created_by)) + ' · ' + (d.day ? 'maybe day ' + d.day : 'any day') + ' · ' + v + ' vote' + (v === 1 ? '' : 's') + '</span>'
+      + '<span class="meta">' + avatar(d.created_by) + (d.day ? 'maybe day ' + d.day : 'any day') + ' · ' + v + ' vote' + (v === 1 ? '' : 's') + '</span>'
       + bars(v) + '</span></button>';
   }
 
@@ -427,7 +465,7 @@
 
   function archiveHTML() {
     var list = S.data.ideas.filter(function (d) { return d.status === 'removed'; });
-    var back = '<div class="row"><button class="btn" data-act="tab" data-tab="ideas" data-sfx="back">Back to the pool</button></div>';
+    var back = '<div class="row"><button class="btn" data-act="tab" data-tab="ideas" data-sfx="back">' + icon('back') + 'Pool</button></div>';
     if (!list.length) return back + stateBlock('Nothing archived', 'Removed ideas land here and stay until the trip ends.');
     return back + '<h2 class="h-pixel">Archive</h2>' + list.map(function (d) {
       return '<div class="card static"><span class="sc">' + sceneSVG(d.scene) + '</span>'
@@ -452,7 +490,7 @@
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
       + '<span class="sc">' + sceneSVG(d.scene) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + esc(nameOf(d.created_by)) + ' · ' + esc(d.stop) + ' · ' + STOPS[d.stop].tz + '</span>'
+      + '<span class="meta">' + avatar(d.created_by) + esc(d.stop) + ' · ' + STOPS[d.stop].tz + '</span>'
       + '<span class="row">' + tags + '</span></span></button>';
   }
 
@@ -460,7 +498,7 @@
     var v = votesFor(d.id).length;
     return '<div class="card slot"><span class="sc">' + sceneSVG(d.scene) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">Suggested by ' + esc(nameOf(d.created_by)) + ' · ' + v + ' votes</span>'
+      + '<span class="meta">' + avatar(d.created_by) + v + ' votes</span>'
       + '<span class="row"><span class="tag slot">Slot suggested</span>'
       + '<button class="btn" data-act="take" data-id="' + esc(d.id) + '" data-day="' + d.day + '" data-dur="' + (d.duration_min || 60) + '">Take slot</button></span>'
       + '</span></div>';
@@ -606,7 +644,7 @@
       : s.kind === 'add' ? addSheet(s.pre, s.day)
       : tripSheet();
     return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet" role="dialog" aria-modal="true">'
-      + '<div class="sheet-top"><span class="grab"></span><button class="btn" data-act="close-sheet" data-sfx="back">Close</button></div>'
+      + '<div class="sheet-top"><span class="grab"></span><button class="btn icon" data-act="close-sheet" data-sfx="back" aria-label="Close" title="Close">' + icon('close') + '</button></div>'
       + '<div class="sbody">' + inner + '</div></div></div>';
   }
 
@@ -628,8 +666,9 @@
       h += '<div class="row"><button class="btn primary" data-act="restore" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Restore</button></div>';
     } else {
       h += '<div class="row">'
-        + '<button class="btn' + (voted ? ' primary' : '') + '" data-act="vote" data-id="' + esc(d.id) + '">' + (voted ? 'Voted' : 'Vote') + ' · ' + v + '</button>'
-        + ((mine || manage) ? '<button class="btn" data-act="edit-open" data-id="' + esc(d.id) + '">Edit</button>' : '')
+        + '<button class="btn' + (voted ? ' primary' : '') + '" data-act="vote" data-id="' + esc(d.id) + '"'
+        + ' aria-label="' + (voted ? 'Remove your vote' : 'Vote for this') + '" title="' + (voted ? 'Voted' : 'Vote') + '">' + icon('paw') + v + '</button>'
+        + ((mine || manage) ? '<button class="btn icon" data-act="edit-open" data-id="' + esc(d.id) + '" aria-label="Edit this" title="Edit">' + icon('pencil') + '</button>' : '')
         + '</div>'
         + '<div class="plan">'
         + '<label class="lbl">Day<select id="dSel">' + dayOpts(d.day) + '</select></label>'
@@ -658,11 +697,11 @@
     h += '<div><p class="meta">Comments</p>'
       + (cs.length ? cs.map(function (c) {
           var canDel = c.user_id === S.user.id || manage;
-          return '<div class="cm"><span class="inf"><b>' + esc(nameOf(c.user_id)) + '</b> ' + esc(c.body) + '</span>'
-            + (canDel ? '<button class="btn" data-act="comment-del" data-id="' + esc(c.id) + '" aria-label="Delete comment" title="Delete comment">×</button>' : '')
+          return '<div class="cm">' + avatar(c.user_id) + '<span class="inf">' + esc(c.body) + '</span>'
+            + (canDel ? '<button class="btn icon" data-act="comment-del" data-id="' + esc(c.id) + '" aria-label="Delete this comment" title="Delete this comment">' + icon('close') + '</button>' : '')
             + '</div>';
         }).join('') : '<p class="meta">No comments yet.</p>')
-      + '<div class="row"><input id="cIn" placeholder="Add a comment"><button class="btn" data-act="comment" data-id="' + esc(d.id) + '">Post</button></div></div>';
+      + '<div class="row"><input id="cIn" placeholder="Add a comment"><button class="btn icon" data-act="comment" data-id="' + esc(d.id) + '" aria-label="Post this comment" title="Post">' + icon('send') + '</button></div></div>';
     return h;
   }
 
@@ -675,7 +714,7 @@
       + '<label class="lbl">Note<textarea id="eNote" rows="3">' + esc(d.note) + '</textarea></label>'
       + '<p class="err" id="eErr"></p>'
       + '<div class="row"><button class="btn primary" data-act="edit-save" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Save</button>'
-      + '<button class="btn" data-act="open-idea" data-id="' + esc(d.id) + '" data-sfx="back">Back</button></div>';
+      + '<button class="btn" data-act="open-idea" data-id="' + esc(d.id) + '" data-sfx="back">' + icon('back') + 'Back</button></div>';
   }
 
   function addSheet(pre, day) {
@@ -710,8 +749,8 @@
       if (!S.data.requests.length) h += '<p class="meta">Nobody waiting.</p>';
       S.data.requests.forEach(function (r) {
         h += '<div class="row"><span class="inf"><span class="ttl">' + esc(r.display_name) + '</span></span>'
-          + '<button class="btn primary" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1">Approve</button>'
-          + '<button class="btn" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="0">Decline</button></div>';
+          + '<button class="btn primary icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1" aria-label="Let ' + esc(r.display_name) + ' in" title="Approve">' + icon('check') + '</button>'
+          + '<button class="btn icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="0" aria-label="Turn ' + esc(r.display_name) + ' away" title="Decline">' + icon('close') + '</button></div>';
       });
     }
 
