@@ -1,6 +1,6 @@
-// Walkies service worker: keeps the app shell available, and always asks the network first.
-// Supabase and font requests are never cached.
-const CACHE = 'walkies-v1';
+// Walkies service worker: keeps the app shell openable, and shows push notifications.
+// Network first, so the family always sees the live plan when they have signal.
+const CACHE = 'walkies-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
@@ -25,6 +25,25 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE).then((c) => c.put(event.request, copy));
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(event.request).then((r) => r || caches.match('index.html')))
   );
+});
+
+self.addEventListener('push', (event) => {
+  let body = 'Something changed in the trip.';
+  try { if (event.data) body = event.data.json().body || body; } catch (e) { if (event.data) body = event.data.text(); }
+  event.waitUntil(self.registration.showNotification('Walkies', {
+    body,
+    icon: 'apple-touch-icon.png',
+    badge: 'apple-touch-icon.png',
+    tag: 'walkies-activity'
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) if ('focus' in c) return c.focus();
+    return clients.openWindow('./');
+  }));
 });

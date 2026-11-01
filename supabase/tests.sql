@@ -1,0 +1,208 @@
+-- Walkies rule tests. Paste into SQL Editor and Run.
+-- Everything happens inside a transaction that rolls back, so the live trip is untouched.
+-- Expected output: one row saying "all rule tests passed".
+
+begin;
+
+do $$
+declare
+  owner_id uuid := gen_random_uuid();
+  mate_id  uuid := gen_random_uuid();
+  outsider uuid := gen_random_uuid();
+  trip uuid; a uuid; b uuid; c uuid; req uuid; msg text; r jsonb;
+  failed text := '';
+
+begin
+  -- Stand-in accounts. Rolled back with everything else.
+  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+  values (owner_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'owner@test.invalid', now(), now()),
+         (mate_id,  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'mate@test.invalid',  now(), now()),
+         (outsider, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'out@test.invalid',   now(), now());
+
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  trip := create_trip('Test trip', 'Owner');
+
+  -- 1. A link we cannot read is refused.
+  begin
+    perform add_idea(trip,'idea','Bad link','Tokyo','https://example.com/x','', 'walk',0,null,60,'',false);
+    failed := failed || E'\n1 bad link was accepted';
+  exception when others then null;
+  end;
+
+  -- 2. A good idea goes in, and the person who added it has voted for it.
+  r := add_idea(trip,'idea','Senso-ji','Tokyo','https://maps.app.goo.gl/senso','Early','temple',0,null,60,'',false);
+  a := (r->>'id')::uuid;
+  if not exists (select 1 from votes where idea_id = a and user_id = owner_id) then
+    failed := failed || E'\n2 adding an idea did not record a vote';
+  end if;
+
+  -- 3. The same link again merges instead of making a second idea.
+  r := add_idea(trip,'idea','Senso-ji again','Tokyo','https://www.maps.app.goo.gl/senso/','Same place','temple',0,null,60,'',false);
+  if (r->>'merged') <> 'true' then failed := failed || E'\n3 duplicate link did not merge'; end if;
+  if (select count(*) from ideas where trip_id = trip) <> 1 then
+    failed := failed || E'\n3 duplicate link created a second idea';
+  end if;
+
+  -- 4. Planning it onto a day and time works.
+  perform place_idea(a, 1, '09:00', 60);
+  if (select status from ideas where id = a) <> 'approved' then failed := failed || E'\n4 place did not approve'; end if;
+
+  -- 5. Same start time on the same day is blocked.
+  r := add_idea(trip,'idea','Clasher','Tokyo','https://maps.app.goo.gl/clash','','walk',0,null,60,'',false);
+  b := (r->>'id')::uuid;
+  begin
+    perform place_idea(b, 1, '09:00', 60);
+    failed := failed || E'\n5 same start time was allowed';
+  exception when others then null;
+  end;
+
+  -- 6. An overlap is blocked too.
+  begin
+    perform place_idea(b, 1, '09:30', 60);
+    failed := failed || E'\n6 overlap was allowed';
+  exception when others then null;
+  end;
+
+  -- 7. A gap under 30 minutes is allowed, with a warning.
+  r := place_idea(b, 1, '10:15', 60);
+  if r->>'warn' is null then failed := failed || E'\n7 tight gap gave no warning'; end if;
+  if (select day from ideas where id = b) <> 1 then failed := failed || E'\n7 tight gap was not saved'; end if;
+
+  -- 8. A clear gap gives no warning.
+  r := add_idea(trip,'idea','Later','Tokyo','https://maps.app.goo.gl/later','','walk',0,null,60,'',false);
+  c := (r->>'id')::uuid;
+  r := place_idea(c, 1, '14:00', 60);
+  if r->>'warn' is not null then failed := failed || E'\n8 a clear gap warned anyway'; end if;
+
+  -- 9. Booking locks it in place.
+  perform set_booking(a, true, 'REF-1', '');
+  begin
+    perform place_idea(a, 2, '09:00', 60);
+    failed := failed || E'\n9 a booked item was moved';
+  exception when others then null;
+  end;
+
+  -- 10. Cancelling a booking needs a reason.
+  begin
+    perform set_booking(a, false, '', '   ');
+    failed := failed || E'\n10 booking was cancelled with no reason';
+  exception when others then null;
+  end;
+
+  -- 11. Removing a booked item needs the real booking confirmed cancelled.
+  begin
+    perform remove_idea(a, 'changed our minds', false);
+    failed := failed || E'\n11 booked item removed without confirming';
+  exception when others then null;
+  end;
+
+  -- 12. Removing needs a reason.
+  begin
+    perform remove_idea(c, '  ', false);
+    failed := failed || E'\n12 removed with no reason';
+  exception when others then null;
+  end;
+
+  -- 13. Remove, then restore to the same spot.
+  perform remove_idea(c, 'too far', false);
+  if (select status from ideas where id = c) <> 'removed' then failed := failed || E'\n13 remove did not archive'; end if;
+  perform restore_idea(c);
+  if (select status from ideas where id = c) <> 'approved' or (select start_time from ideas where id = c) <> '14:00' then
+    failed := failed || E'\n13 restore did not return it to its spot';
+  end if;
+
+  -- 14. If the old spot is taken, it comes back to the pool instead.
+  perform remove_idea(c, 'again', false);
+  perform place_idea(b, 1, '14:00', 30);
+  msg := restore_idea(c);
+  if (select status from ideas where id = c) <> 'suggested' or (select day from ideas where id = c) <> 0 then
+    failed := failed || E'\n14 taken spot did not send it to the pool';
+  end if;
+
+  -- 15. Someone who is not in the trip cannot add to it.
+  perform set_config('request.jwt.claims', json_build_object('sub', outsider)::text, true);
+  begin
+    perform add_idea(trip,'idea','Sneaky','Tokyo','https://maps.app.goo.gl/sneak','','walk',0,null,60,'',false);
+    failed := failed || E'\n15 an outsider added an idea';
+  exception when others then null;
+  end;
+
+  -- 16. The invite link only asks; it does not join.
+  perform request_join((select invite_token from trips where id = trip), 'Outsider');
+  if is_member(trip) then failed := failed || E'\n16 the invite link let someone straight in'; end if;
+
+  -- 17. Only the owner or an admin decides.
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  perform request_join((select invite_token from trips where id = trip), 'Mate');
+  select id into req from join_requests where trip_id = trip and user_id = outsider;
+  begin
+    perform decide_join(req, true);
+    failed := failed || E'\n17 a non-member approved a join request';
+  exception when others then null;
+  end;
+
+  -- 18. The owner approves, and then they are in.
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  perform decide_join((select id from join_requests where trip_id = trip and user_id = mate_id), true);
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  if not is_member(trip) then failed := failed || E'\n18 approval did not add the member'; end if;
+
+  -- 19. Only the owner pre-sets slots.
+  begin
+    perform add_idea(trip,'idea','Preset','Tokyo','https://maps.app.goo.gl/pre','','walk',3,'08:00',60,'',true);
+    failed := failed || E'\n19 a member pre-set a slot';
+  exception when others then null;
+  end;
+
+  -- 20. You can only remove your own suggestions.
+  begin
+    perform remove_idea(b, 'not mine', false);
+    failed := failed || E'\n20 a member removed someone else''s idea';
+  exception when others then null;
+  end;
+
+  -- 21. Editing follows the same rule, and the owner can edit anything.
+  begin
+    perform update_idea(b, 'Hijacked', 'Tokyo', 'https://maps.app.goo.gl/clash', '');
+    failed := failed || E'\n21 a member edited someone else''s idea';
+  exception when others then null;
+  end;
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  perform update_idea(b, 'Renamed', 'Kyoto', 'https://maps.app.goo.gl/clash', 'new note');
+  if (select title from ideas where id = b) <> 'Renamed' then failed := failed || E'\n21 the owner could not edit'; end if;
+
+  -- 22. Kicking needs a reason, and the owner cannot be kicked.
+  begin
+    perform kick_member(trip, mate_id, '');
+    failed := failed || E'\n22 kicked with no reason';
+  exception when others then null;
+  end;
+  begin
+    perform kick_member(trip, owner_id, 'because');
+    failed := failed || E'\n22 the owner was kicked';
+  exception when others then null;
+  end;
+
+  -- 23. Leaving keeps the person's ideas, and the owner cannot leave.
+  begin
+    perform leave_trip(trip);
+    failed := failed || E'\n23 the owner left the trip';
+  exception when others then null;
+  end;
+
+  -- 24. Only the owner deletes the trip.
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  begin
+    perform delete_trip(trip);
+    failed := failed || E'\n24 a member deleted the trip';
+  exception when others then null;
+  end;
+
+  if failed <> '' then
+    raise exception 'RULE TESTS FAILED:%', failed;
+  end if;
+end $$;
+
+select 'all rule tests passed' as result;
+
+rollback;
