@@ -30,8 +30,8 @@ svg.px{display:block; shape-rendering:crispEdges}
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 
 /* ===== Shell: one phone-width column on grid paper ===== */
-.app{display:flex; justify-content:center; min-height:100vh}
-.screen{width:100%; max-width:440px; min-height:100vh; background:var(--paper); display:flex; flex-direction:column;
+.app{display:flex; justify-content:center; min-height:100vh; min-height:100dvh}
+.screen{width:100%; max-width:440px; min-height:100vh; min-height:100dvh; background:var(--paper); display:flex; flex-direction:column;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:16px 16px; padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 .screen.center{align-items:center; justify-content:center; text-align:center; gap:14px; padding:24px 16px}
@@ -136,14 +136,19 @@ h2,h3{margin:0}
 .launchbar i.on{background:var(--shell)}
 
 /* ===== Sheet ===== */
-.sheet-wrap{position:fixed; inset:0; background:rgba(22,24,29,.45); display:flex; align-items:flex-end; justify-content:center; z-index:30}
-.sheet{width:100%; max-width:440px; max-height:88vh; overflow:auto; background:var(--raised); border-top:2px solid var(--ink);
+.sheet-wrap{position:fixed; inset:0; height:100vh; height:100dvh; background:rgba(22,24,29,.45); display:flex; align-items:flex-end; justify-content:center; z-index:30}
+.sheet{width:100%; max-width:440px; max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:var(--raised); border-top:2px solid var(--ink);
   border-radius:14px 14px 0 0; padding:6px 16px calc(20px + env(safe-area-inset-bottom,0px)); animation:sheetup .26s var(--spring)}
 @keyframes sheetup{from{transform:translateY(40px)} to{transform:none}}
 .sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--raised); padding:6px 0 8px; z-index:1}
 .grab{width:44px; height:6px; background:var(--frame); border-radius:3px}
 .sbody{display:flex; flex-direction:column; gap:10px}
-.hero{height:130px; border:1px solid var(--frame); border-radius:6px; overflow:hidden; background:#D7E6F5}
+.hero{height:170px; border:1px solid var(--frame); border-radius:6px; overflow:hidden; background:#D7E6F5; position:relative}
+.hero img,.sc img{width:100%; height:100%; object-fit:cover; display:block}
+.hero .credit{position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:2px 6px;
+  background:rgba(22,24,29,.6); color:#F4F5F7}
+.upl{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.upl input[type=file]{display:none}
 .note{background:var(--sunken); border:1px solid var(--frame); border-radius:6px; padding:8px 10px; font-size:14px}
 .note.code{word-break:break-all; font-size:12px}
 .src{font-size:14px; color:var(--blue)}

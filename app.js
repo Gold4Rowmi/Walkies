@@ -48,8 +48,11 @@
     return h * 60 + m;
   }
 
-  var LINK_RE = /^https?:\/\/(www\.)?(google\.com\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|instagram\.com|tiktok\.com|jal\.co\.jp|ana\.co\.jp|vietjetair\.com|vietnamairlines\.com)\b/i;
-  function validLink(u) { return LINK_RE.test(u || ''); }
+  // Share links come from all sorts of subdomains: vt.tiktok.com, vm.tiktok.com,
+  // google.com.au/maps. Allow any subdomain on the hosts we know.
+  var SOCIAL_RE = /^https?:\/\/([a-z0-9-]+\.)*(tiktok\.com|instagram\.com|instagr\.am|jal\.co\.jp|ana\.co\.jp|vietjetair\.com|vietnamairlines\.com)(\/|$)/i;
+  var MAPS_RE = /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|([a-z0-9-]+\.)*google\.[a-z.]{2,6}\/maps|maps\.google\.[a-z.]{2,6})/i;
+  function validLink(u) { return SOCIAL_RE.test(u || '') || MAPS_RE.test(u || ''); }
   function srcName(u) {
     return /instagram/i.test(u) ? 'Instagram' : /tiktok/i.test(u) ? 'TikTok' : /maps|goo\.gl/i.test(u) ? 'Google Maps' : 'Booking page';
   }
@@ -210,6 +213,17 @@
     return '<svg viewBox="0 0 16 10" preserveAspectRatio="xMidYMid ' + (fit || 'slice') + '" aria-hidden="true">' + out + '</svg>';
   }
   function sceneFor(kind) { return kind === 'travel' ? 'plane' : 'walk'; }
+
+  // A photo if someone added one, otherwise the pixel scene.
+  function photoUrl(d) {
+    if (!d.photo_path || !sb) return '';
+    try { return sb.storage.from('idea-photos').getPublicUrl(d.photo_path).data.publicUrl; }
+    catch (e) { return ''; }
+  }
+  function thumb(d) {
+    var u = photoUrl(d);
+    return u ? '<img src="' + esc(u) + '" alt="" loading="lazy">' : sceneSVG(d.scene);
+  }
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
   var ICONS = {
@@ -443,7 +457,7 @@
   function ideaCard(d) {
     var v = votesFor(d.id).length;
     return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '">'
-      + '<span class="sc">' + sceneSVG(d.scene) + '</span>'
+      + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="meta">' + avatar(d.created_by) + (d.day ? 'maybe day ' + d.day : 'any day') + ' · ' + v + ' vote' + (v === 1 ? '' : 's') + '</span>'
       + bars(v) + '</span></button>';
@@ -468,7 +482,7 @@
     var back = '<div class="row"><button class="btn" data-act="tab" data-tab="ideas" data-sfx="back">' + icon('back') + 'Pool</button></div>';
     if (!list.length) return back + stateBlock('Nothing archived', 'Removed ideas land here and stay until the trip ends.');
     return back + '<h2 class="h-pixel">Archive</h2>' + list.map(function (d) {
-      return '<div class="card static"><span class="sc">' + sceneSVG(d.scene) + '</span>'
+      return '<div class="card static"><span class="sc">' + thumb(d) + '</span>'
         + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
         + '<span class="meta">' + esc(d.stop) + (d.archive_reason ? ' · ' + esc(d.archive_reason) : '') + '</span>'
         + '<button class="btn" data-act="restore" data-id="' + esc(d.id) + '">Restore</button></span></div>';
@@ -488,7 +502,7 @@
       + (d.booked ? ' <span class="tag booked">Booked' + (d.booking_ref ? ' · ' + esc(d.booking_ref) : '') + '</span>' : '')
       + (d.kind === 'travel' ? ' <span class="tag">Travel</span>' : '');
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
-      + '<span class="sc">' + sceneSVG(d.scene) + '</span>'
+      + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="meta">' + avatar(d.created_by) + esc(d.stop) + ' · ' + STOPS[d.stop].tz + '</span>'
       + '<span class="row">' + tags + '</span></span></button>';
@@ -496,7 +510,7 @@
 
   function slotCard(d) {
     var v = votesFor(d.id).length;
-    return '<div class="card slot"><span class="sc">' + sceneSVG(d.scene) + '</span>'
+    return '<div class="card slot"><span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="meta">' + avatar(d.created_by) + v + ' votes</span>'
       + '<span class="row"><span class="tag slot">Slot suggested</span>'
@@ -655,12 +669,21 @@
     var status = d.status === 'approved'
       ? (d.day ? 'Planned on ' + dayLabel(d.day) + (d.start_time ? ' at ' + hhmm(d.start_time) : '') : 'Planned, no day yet')
       : d.status === 'removed' ? 'In the archive' + (d.archive_reason ? ' · ' + d.archive_reason : '') : 'In the pool';
-    var h = '<div class="hero">' + sceneSVG(d.scene, 'meet') + '</div>'
+    var pu = photoUrl(d);
+    var h = '<div class="hero">' + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '">' : sceneSVG(d.scene, 'meet')) + '</div>'
       + '<h2 class="h-pixel lg">' + esc(d.title) + '</h2>'
       + '<p class="meta">' + esc(d.stop) + ' · ' + STOPS[d.stop].tz + ' · by ' + esc(nameOf(d.created_by)) + '</p>'
       + '<p class="meta">' + esc(status) + '</p>'
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
       + (d.link ? '<a class="src" href="' + esc(d.link) + '" target="_blank" rel="noopener">Open ' + esc(srcName(d.link)) + ' ↗</a>' : '');
+
+    if (d.status !== 'removed' && (mine || manage)) {
+      h += '<div class="upl">'
+        + '<label class="btn" for="photoIn">' + icon('plus') + (pu ? 'Change photo' : 'Add a photo') + '</label>'
+        + '<input type="file" id="photoIn" accept="image/*" data-id="' + esc(d.id) + '">'
+        + (pu ? '<button class="btn" data-act="photo-clear" data-id="' + esc(d.id) + '">Remove photo</button>' : '')
+        + '</div><p class="meta" id="uplMsg">Your own photo. It shows on the card and here.</p>';
+    }
 
     if (d.status === 'removed') {
       h += '<div class="row"><button class="btn primary" data-act="restore" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Restore</button></div>';
@@ -999,6 +1022,43 @@
     react('alert', 300);
   };
 
+  // ---------- Photos ----------
+  // iPhone photos are far bigger than this needs. Shrink to 1200px before sending.
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var max = 1200, w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { resolve(b || file); }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('That file is not an image we can read.')); };
+      img.src = url;
+    });
+  }
+  async function uploadPhoto(ideaId, file) {
+    var msg = document.getElementById('uplMsg');
+    if (msg) msg.textContent = 'Uploading…';
+    var blob = await shrink(file);
+    var path = S.tripId + '/' + ideaId + '-' + Date.now() + '.jpg';
+    var up = await sb.storage.from('idea-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (up.error) throw up.error;
+    var r = await sb.rpc('set_idea_photo', { p_idea: ideaId, p_path: path });
+    if (r.error) throw r.error;
+    toast('Photo added.', 'success');
+    await refresh();
+  }
+  H['photo-clear'] = async function (el) {
+    var r = await sb.rpc('set_idea_photo', { p_idea: el.dataset.id, p_path: '' });
+    if (r.error) return setErr('sErr', r.error.message);
+    toast('Photo removed. The drawing is back.', 'new');
+    await refresh();
+  };
+
   // ---------- Push notifications ----------
   function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && CFG.VAPID_PUBLIC; }
   function b64ToU8(b64) {
@@ -1036,6 +1096,17 @@
   };
 
   // ---------- Events ----------
+  app.addEventListener('change', function (ev) {
+    var f = ev.target.closest('#photoIn');
+    if (!f || !f.files || !f.files[0]) return;
+    SFX.tick();
+    uploadPhoto(f.dataset.id, f.files[0]).catch(function (e) {
+      var m = document.getElementById('uplMsg');
+      if (m) m.textContent = '';
+      toast((e && e.message) || 'That photo would not upload.', 'error');
+    });
+  });
+
   app.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
