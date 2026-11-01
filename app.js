@@ -385,7 +385,7 @@
   }
 
   function renderTrip() {
-    var tabs = [['ideas', 'Ideas'], ['days', 'Days'], ['now', 'Now'], ['map', 'Map'], ['archive', 'Archive']].map(function (x) {
+    var tabs = [['ideas', 'Ideas'], ['days', 'Days'], ['now', 'Now'], ['map', 'Map']].map(function (x) {
       return '<button class="' + (S.tab === x[0] ? 'on' : '') + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>';
     }).join('');
     var body = S.tab === 'days' ? daysHTML()
@@ -427,8 +427,9 @@
 
   function archiveHTML() {
     var list = S.data.ideas.filter(function (d) { return d.status === 'removed'; });
-    if (!list.length) return stateBlock('Nothing archived', 'Removed ideas land here and stay until the trip ends.');
-    return '<h2 class="h-pixel">Archive</h2>' + list.map(function (d) {
+    var back = '<div class="row"><button class="btn" data-act="tab" data-tab="ideas" data-sfx="back">Back to the pool</button></div>';
+    if (!list.length) return back + stateBlock('Nothing archived', 'Removed ideas land here and stay until the trip ends.');
+    return back + '<h2 class="h-pixel">Archive</h2>' + list.map(function (d) {
       return '<div class="card static"><span class="sc">' + sceneSVG(d.scene) + '</span>'
         + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
         + '<span class="meta">' + esc(d.stop) + (d.archive_reason ? ' · ' + esc(d.archive_reason) : '') + '</span>'
@@ -724,7 +725,9 @@
       h += '<input id="kickReason" placeholder="Reason"></div>';
     }
 
-    h += '<div class="row"><button class="btn" data-act="about">About Walkies</button>'
+    var archived = S.data.ideas.filter(function (x) { return x.status === 'removed'; }).length;
+    h += '<div class="row"><button class="btn" data-act="tab" data-tab="archive">Archive · ' + archived + '</button>'
+      + '<button class="btn" data-act="about">About Walkies</button>'
       + (owner ? '<button class="btn danger" data-act="delete-trip">Delete trip</button>'
                : (m && isActive(m) ? '<button class="btn" data-act="leave">Leave trip</button>' : ''))
       + '</div>';
@@ -744,7 +747,14 @@
     await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
   };
   H.signout = async function () { await sb.auth.signOut(); };
-  H.about = function () { var d = document.getElementById('about'); paintLock(); pushBtnLabel(); d.showModal(); };
+  H.about = function () {
+    paintLock(); pushBtnLabel(); themeBtnLabel();
+    document.getElementById('about').showModal();
+  };
+  function themeBtnLabel() {
+    var b = document.getElementById('themeBtn');
+    if (b) b.textContent = isDark() ? 'Light mode' : 'Dark mode';
+  }
 
   H['new-trip'] = async function () {
     var name = val('newTripName');
@@ -755,7 +765,20 @@
   };
 
   H['open-trip'] = function (el) { return openTrip(el.dataset.id); };
-  H.tab = function (el) { S.tab = el.dataset.tab; S.sheet = null; if (el.dataset.tab === 'map') SFX.sniff(); render(); };
+  H.tab = function (el) {
+    S.tab = el.dataset.tab;
+    S.sheet = null;
+    if (el.dataset.tab === 'map') SFX.sniff();
+    render();
+  };
+  H.theme = function () {
+    var next = isDark() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('walkies_theme', next); } catch (e) {}
+    themeBtnLabel();
+    render();
+    paintLock();
+  };
   H.day = function (el) { S.day = Number(el.dataset.id); render(); };
   H['open-idea'] = function (el) { S.sheet = { kind: 'idea', id: el.dataset.id }; render(); };
   H['edit-open'] = function (el) { S.sheet = { kind: 'edit', id: el.dataset.id }; render(); };
@@ -984,6 +1007,7 @@
     });
   });
   document.getElementById('pushBtn').addEventListener('click', function () { H.push(); });
+  document.getElementById('themeBtn').addEventListener('click', function () { H.theme(); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { render(); paintLock(); });
 
   // ---------- Boot screen ----------

@@ -15,6 +15,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="styles.css">
+<script>
+  // Light unless the person has chosen dark. Set before paint, so there is no flash.
+  try { document.documentElement.dataset.theme = localStorage.getItem('walkies_theme') || 'light'; }
+  catch (e) { document.documentElement.dataset.theme = 'light'; }
+</script>
 </head>
 <body>
 
@@ -29,6 +34,7 @@
   <p style="color:var(--muted)">Made in memory of Rommel.</p>
   <div class="row" style="margin-bottom:12px">
     <button class="btn" type="button" id="pushBtn" data-sfx="tick">Turn on notifications</button>
+    <button class="btn" type="button" id="themeBtn" data-sfx="tick">Dark mode</button>
   </div>
   <form method="dialog"><button class="btn" type="submit" data-sfx="back">Close</button></form>
 </dialog>
