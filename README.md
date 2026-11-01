@@ -54,13 +54,14 @@ Database changes are separate: paste the SQL into the Supabase SQL Editor and ru
 
 Off until someone turns them on in **Trip → About → Turn on notifications**. iPhone only works once the app is on the home screen (iOS 16.4+).
 
-To make them send, deploy the function and point the database at it:
+The `notify` function is already deployed. Two things make it send:
 
-1. `supabase functions deploy notify --no-verify-jwt`
-2. Set its secrets: `VAPID_PUBLIC` and `VAPID_PRIVATE` (both in `config.js` / your notes), `VAPID_SUBJECT` as `mailto:` your email, plus `PROJECT_URL` and `SERVICE_ROLE_KEY` from Project Settings → API.
-3. In Supabase, **Database → Webhooks → Create**: table `activity`, event `Insert`, type HTTP Request, URL the function's address.
+1. **Secrets** — Supabase → Edge Functions → Secrets. Add `VAPID_PUBLIC`, `VAPID_PRIVATE`, `VAPID_SUBJECT` (`mailto:` your email), `PROJECT_URL` and `SERVICE_ROLE_KEY` (the last two from Project Settings → API).
+2. **Webhook** — Database → Webhooks → Create: table `activity`, event `Insert`, type Supabase Edge Functions, function `notify`. Set the `Authorization` header to `Bearer <your service role key>`.
 
-Until that is done the switch still works, but nothing is sent.
+The function keeps JWT verification on, so that header is what lets the webhook in and keeps everyone else out.
+
+Until both are done the switch still works, but nothing is sent.
 
 ## Keeping it alive
 

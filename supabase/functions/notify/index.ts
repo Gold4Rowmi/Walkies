@@ -1,6 +1,8 @@
 // Walkies push sender. Supabase calls this when a row lands in `activity`,
 // and it pushes that line to everyone on the trip who turned notifications on.
-// Deploy:  supabase functions deploy notify --no-verify-jwt
+// Called by a Database Webhook that carries the service role key, so JWT
+// verification stays on and nobody can call this from outside.
+// Deploy:  supabase functions deploy notify
 // Secrets: VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT, SERVICE_ROLE_KEY, PROJECT_URL
 import webpush from 'https://esm.sh/web-push@3.6.7';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
