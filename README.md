@@ -14,6 +14,7 @@ Live at **https://rowmi-walkies.netlify.app** · database: the `Lao-holiday` Sup
 | `manifest.webmanifest`, `icon.svg`, `apple-touch-icon.png` | Home-screen install. |
 | `supabase/schema.sql` | Everything, for a fresh database. |
 | `supabase/migrate-v2.sql` | Just the v2 additions, for a database that already has v1. |
+| `supabase/migrate-v3.sql` | The security advisor fixes, for a database that already has v2. |
 | `supabase/tests.sql` | Checks every rule. Rolls back, so it never touches real data. |
 | `supabase/functions/notify/` | Sends the push notifications. |
 
@@ -67,7 +68,10 @@ Until both are done the switch still works, but nothing is sent.
 
 - **The free plan pauses a project after about a week with no traffic.** Open the Supabase dashboard before the trip and check it is active.
 - **There are no automatic backups on the free plan.** Before the trip, run `select * from ideas;` in the SQL Editor and download the CSV.
-- Check Supabase → Advisors → Security now and then.
+- Check Supabase → Advisors → Security now and then. Two warnings are expected and fine:
+  the API functions (`add_idea`, `place_idea` and so on) are flagged as SECURITY DEFINER
+  functions signed-in users can call — that is what they are for, and each checks membership
+  itself. Leaked password protection is off because nobody has a password; sign-in is Google only.
 
 ## Secret admin
 

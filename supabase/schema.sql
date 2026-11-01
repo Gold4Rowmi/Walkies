@@ -134,18 +134,20 @@ language sql stable security definer set search_path = public as $$
   );
 $$;
 
+-- Writes the trip log. Checks nothing, because every caller has already
+-- checked. Not reachable from the API: see the revoke at the end.
 create or replace function log_activity(t uuid, msg text) returns void
 language sql security definer set search_path = public as $$
   insert into activity (trip_id, msg) values (t, msg);
 $$;
 
 create or replace function norm_link(u text) returns text
-language sql immutable as $$
+language sql immutable set search_path = public as $$
   select lower(regexp_replace(regexp_replace(coalesce(u, ''), '^https?://(www\.)?', ''), '[?#].*$|/$', '', 'g'));
 $$;
 
 create or replace function valid_link(u text) returns boolean
-language sql immutable as $$
+language sql immutable set search_path = public as $$
   select coalesce(u, '') = ''
       or u ~* '^https?://(www\.)?(google\.com/maps|maps\.app\.goo\.gl|goo\.gl/maps|instagram\.com|tiktok\.com|jal\.co\.jp|ana\.co\.jp|vietjetair\.com|vietnamairlines\.com)';
 $$;
@@ -508,6 +510,12 @@ create policy nearby_read on nearby_suggestions for select using (auth.uid() is 
 -- Only signed-in users can run the functions; nobody anonymous.
 revoke execute on all functions in schema public from public, anon;
 grant execute on all functions in schema public to authenticated;
+
+-- log_activity is called only from inside the functions above, which run as
+-- the owner and so still reach it. Left open, any signed-in person could post
+-- lines into any trip's log. is_member, is_owner and can_manage stay granted:
+-- the policies call them as the signed-in user.
+revoke execute on function log_activity(uuid, text) from authenticated, anon, public;
 
 -- ---------- Secret admin ----------
 -- To make someone the secret admin (only you), run this once, with their Google account
