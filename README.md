@@ -49,7 +49,11 @@ Run `supabase/tests.sql` in the SQL Editor after any schema change. It should pr
 4. Open the site, check the version in About, and hard-reload once.
 5. To undo: Netlify → Deploys → the previous deploy → **Publish deploy**.
 
-Database changes are separate: paste the SQL into the Supabase SQL Editor and run it. There is no automatic migration.
+Database changes are separate, and there is no automatic migration. Claude can apply them
+straight to the project, with one catch: `drop` and `revoke` statements need a confirmation
+that this setup cancels on its own, so a migration written with `create or replace`,
+`add column if not exists` and `on conflict do update` goes through unattended, and one
+that drops or revokes has to be pasted into the SQL Editor by hand.
 
 ## Notifications
 

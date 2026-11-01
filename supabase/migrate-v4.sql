@@ -1,5 +1,6 @@
 -- Walkies v4: a photo on an idea, uploaded by whoever added it.
--- Run once in SQL Editor. Safe to run twice.
+-- ALREADY APPLIED to the Lao-holiday project. Kept as the record, and for a
+-- fresh database. The `drop policy` lines are only needed on a re-run.
 
 alter table ideas add column if not exists photo_path text not null default '';
 
