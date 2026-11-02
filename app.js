@@ -395,11 +395,34 @@
   }
 
   // ---------- Renders ----------
+  // render() replaces the whole screen, which threw away where you were:
+  // picking a later day sent the strip back to day 1, and a vote or an
+  // arriving photo jumped the page to the top.
+  function keepPlace(fn) {
+    var bar = document.querySelector('.daybar');
+    var left = bar ? bar.scrollLeft : 0;
+    var top = window.scrollY;
+    fn();
+    var nb = document.querySelector('.daybar');
+    if (nb) {
+      nb.scrollLeft = left;
+      var on = nb.querySelector('.chip.on');
+      // Only move the strip if the chosen day is off the edge.
+      if (on && (on.offsetLeft < nb.scrollLeft
+                 || on.offsetLeft + on.offsetWidth > nb.scrollLeft + nb.clientWidth)) {
+        nb.scrollLeft = on.offsetLeft - (nb.clientWidth - on.offsetWidth) / 2;
+      }
+    }
+    if (window.scrollY !== top) window.scrollTo(0, top);
+  }
+
   function render() {
     if (!S.user) return renderSignIn();
     if (!S.tripId) return renderTrips();
     if (!S.data) return renderTripLoading();
-    renderTrip();
+    keepPlace(function () {
+      renderTrip();
+    });
     if (S.tab === 'map') drawMap();
     findPhotos();
   }
@@ -856,6 +879,7 @@
     S.sheet = null;
     if (el.dataset.tab === 'map') SFX.sniff();
     render();
+    window.scrollTo(0, 0);   // a different view, so start at its top
   };
   H.theme = function () {
     var next = isDark() ? 'light' : 'dark';
@@ -1104,7 +1128,14 @@
   // auto_photo is null until we have looked, then '' for nothing found, so a
   // miss is remembered and never asked about again. Bounded per load, because
   // a quiet trickle beats a burst on hotel wifi.
-  var lookingUp = false;
+  var lookingUp = false, moanedAboutPhotos = false;
+  // A photo is a nicety, so a failure must not interrupt anyone. It must also
+  // not be invisible: silence here hid a broken call through a whole release.
+  function photoLookupBroken(why) {
+    if (moanedAboutPhotos) return;
+    moanedAboutPhotos = true;
+    if (window.console) console.warn('Walkies: photo lookup failed -', why);
+  }
   async function findPhotos() {
     if (lookingUp || !S.data) return;
     var todo = S.data.ideas.filter(function (d) {
@@ -1121,13 +1152,13 @@
         var save = await sb.rpc('set_auto_photo', {
           p_idea: d.id, p_url: hit.thumbnail || '', p_credit: hit.credit || ''
         });
-        if (save.error) break;
+        if (save.error) { photoLookupBroken(save.error.message); break; }
         d.auto_photo = hit.thumbnail || '';
         d.auto_credit = hit.credit || '';
         if (hit.thumbnail) found++;
       }
     } catch (e) {
-      // A photo is a nicety. If the lookup fails the drawing stays.
+      photoLookupBroken(e && e.message);
     }
     lookingUp = false;
     if (found) render();

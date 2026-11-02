@@ -20,3 +20,8 @@ begin
 end $$;
 
 grant execute on function set_auto_photo(uuid, text, text) to authenticated;
+
+-- A first cut of set_auto_photo took (uuid, text). Adding the credit argument
+-- created a second function rather than replacing the first, and PostgREST
+-- cannot choose between two overloads, so every save failed. ALREADY APPLIED.
+drop function if exists public.set_auto_photo(uuid, text);
