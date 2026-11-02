@@ -180,6 +180,17 @@ h2,h3{margin:0}
 .err{color:var(--danger); font-size:13px; min-height:16px; margin:0}
 .notice{font-size:14px; background:var(--raised); border:1px solid var(--frame); border-radius:6px; padding:8px 12px; margin:12px 16px 0}
 
+/* ===== Suggestions under a box ===== */
+.suggest{display:flex; flex-direction:column; border:1px solid var(--frame); border-radius:6px; background:var(--raised);
+  box-shadow:0 2px 0 var(--frame); overflow:hidden}
+.suggest:empty{display:none}
+.sug{display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:44px; padding:0 12px;
+  border:0; border-top:1px solid var(--grid); background:none; font:inherit; font-size:15px; color:var(--ink);
+  text-align:left; cursor:pointer}
+.sug:first-child{border-top:0}
+.sug:active{background:var(--sel-soft)}
+@media (hover: hover) { .sug:hover{ background:var(--sunken) } }
+
 /* ===== Forms ===== */
 .lbl{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
 input,select,textarea{font:inherit; font-size:16px; min-height:44px; padding:8px 12px; border:1px solid var(--frame);

@@ -21,6 +21,32 @@
   var CITIES = (window.WALKIES_CITIES || []).map(function (c) {
     return { name: c[0], country: c[1], zone: c[2], lat: c[3], lng: c[4] };
   });
+  function fold(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+  // Safari on iPhone shows a <datalist> inconsistently, so this draws its own:
+  // up to six matches under the box, names that start with what you typed first.
+  function suggestionsFor(kind, typed) {
+    var q = fold(typed);
+    if (!q) return [];
+    var pool = kind === 'city'
+      ? CITIES.map(function (c) { return { value: c.name, note: c.country }; })
+      : S.data.nearby.filter(function (n) { return stopNames().indexOf(n.stop) >= 0; })
+          .map(function (n) { return { value: n.title, note: n.stop }; });
+    var hits = pool.filter(function (o) { return fold(o.value).indexOf(q) >= 0 || fold(o.note).indexOf(q) >= 0; });
+    if (hits.length === 1 && fold(hits[0].value) === q) return [];   // already exactly that
+    hits.sort(function (a, b) {
+      var as = fold(a.value).indexOf(q) === 0 ? 0 : 1, bs = fold(b.value).indexOf(q) === 0 ? 0 : 1;
+      return as - bs || a.value.localeCompare(b.value);
+    });
+    return hits.slice(0, 6);
+  }
+  function showSuggestions(input) {
+    var box = input.closest('.lbl, .row').nextElementSibling;
+    if (!box || !box.classList.contains('suggest')) return;
+    box.innerHTML = suggestionsFor(input.dataset.suggest, input.value).map(function (o) {
+      return '<button type="button" class="sug" role="option" data-act="sug-pick" data-v="' + esc(o.value) + '">'
+        + '<span>' + esc(o.value) + '</span><span class="meta">' + esc(o.note) + '</span></button>';
+    }).join('');
+  }
   function cityByName(n) {
     n = String(n || '').trim().toLowerCase();
     for (var i = 0; i < CITIES.length; i++) if (CITIES[i].name.toLowerCase() === n) return CITIES[i];
@@ -853,9 +879,8 @@
   function addSheet(pre, day) {
     return '<h2 class="h-pixel lg">' + (pre ? 'Pre-set a slot' : 'Add to the trip') + '</h2>'
       + '<label class="lbl">Link<input id="fLink" placeholder="Google Maps, Instagram, TikTok or airline link"></label>'
-      + '<label class="lbl">Title<input id="fTitle" list="placeList" autocomplete="off" placeholder="Name it"></label>'
-      + '<datalist id="placeList">' + S.data.nearby.filter(function (n) { return stopNames().indexOf(n.stop) >= 0; })
-          .map(function (n) { return '<option value="' + esc(n.title) + '">' + esc(n.stop) + '</option>'; }).join('') + '</datalist>'
+      + '<label class="lbl">Title<input id="fTitle" data-suggest="place" autocomplete="off" placeholder="Name it"></label>'
+      + '<div class="suggest" role="listbox"></div>'
       + '<label class="lbl">Type<select id="fKind"><option value="idea">Idea</option><option value="travel">Travel (flight or transfer)</option></select></label>'
       + '<label class="lbl">Stop<select id="fStop">' + stopOpts(stopFor(day || 1)) + '</select></label>'
       + '<label class="lbl">' + (pre ? 'Day' : 'Maybe day') + '<select id="fDay">' + dayOpts(day || 0) + '</select></label>'
@@ -879,10 +904,7 @@
   function planSheet() {
     var d = S.planDraft;
     var total = d.stops.reduce(function (a, x) { return a + Math.max(1, Number(x.days) || 1); }, 0);
-    var h = '<datalist id="cityList">' + CITIES.map(function (c) {
-        return '<option value="' + esc(c.name) + '">' + esc(c.country) + '</option>';
-      }).join('') + '</datalist>'
-      + '<h2 class="h-pixel lg">Dates and stops</h2>'
+    var h = '<h2 class="h-pixel lg">Dates and stops</h2>'
       + '<label class="lbl">First day of the trip<input id="pStart" type="date" value="' + esc(d.start) + '"></label>'
       + '<p class="meta">Stops in the order you visit them. Day numbers follow on from one stop to the next.</p>';
     var day = 1;
@@ -898,9 +920,10 @@
       }).join('');
       h += '<div class="sugg" data-stop-row="' + i + '">'
         + '<div class="row"><span class="glyph">' + (i + 1) + '</span>'
-        + '<input data-f="name" list="cityList" autocomplete="off" value="' + esc(st.name) + '" placeholder="Search a city, or type any place" aria-label="Stop ' + (i + 1) + ' name">'
+        + '<input data-f="name" data-suggest="city" autocomplete="off" autocorrect="off" value="' + esc(st.name) + '" placeholder="Search a city, or type any place" aria-label="Stop ' + (i + 1) + ' name">'
         + '<button class="btn icon" data-act="plan-del" data-i="' + i + '" aria-label="Remove stop ' + (i + 1) + '" title="Remove"'
         + (d.stops.length < 2 ? ' disabled' : '') + '>' + icon('close') + '</button></div>'
+        + '<div class="suggest" role="listbox"></div>'
         + '<div class="row"><label class="lbl">Days<input data-f="days" type="number" min="1" max="60" value="' + n + '"></label>'
         + '<label class="lbl" style="flex:1">Time zone<select data-f="zone">' + zones + '</select></label></div>'
         + '<p class="meta">Day ' + day + (n > 1 ? ' to ' + (day + n - 1) : '')
@@ -1016,6 +1039,14 @@
   H['add-open'] = function () { S.sheet = { kind: 'add', pre: false, day: S.day }; render(); };
   H['preset-open'] = function () { S.sheet = { kind: 'add', pre: true, day: S.day }; render(); };
   H['trip-open'] = function () { S.sheet = { kind: 'trip' }; render(); };
+  H['sug-pick'] = function (el) {
+    var box = el.closest('.suggest');
+    var input = box.previousElementSibling.querySelector('[data-suggest]');
+    input.value = el.dataset.v;
+    box.innerHTML = '';
+    applyCity(input);
+    input.focus({ preventScroll: true });
+  };
 
   // The editor works on a copy, so nothing changes until Save, and adding or
   // removing a row keeps what has already been typed.
@@ -1402,10 +1433,10 @@
   };
 
   // ---------- Events ----------
-  app.addEventListener('input', function (ev) {
-    var f = ev.target;
-    if (!f.matches || !f.matches('[data-stop-row] [data-f="name"]')) return;
-    var row = f.closest('[data-stop-row]'), city = cityByName(f.value);
+  function applyCity(f) {
+    var row = f.closest('[data-stop-row]');
+    if (!row) return;
+    var city = cityByName(f.value);
     var hint = row.querySelector('[data-hint]');
     if (hint) hint.textContent = city ? ' · ' + city.country : '';
     if (!city) return;
@@ -1413,6 +1444,12 @@
     var has = [].some.call(sel.options, function (o) { return o.value === city.zone; });
     if (!has) sel.insertAdjacentHTML('afterbegin', '<option>' + esc(city.zone) + '</option>');
     sel.value = city.zone;
+  }
+  app.addEventListener('input', function (ev) {
+    var f = ev.target;
+    if (!f.dataset || !f.dataset.suggest) return;
+    showSuggestions(f);
+    applyCity(f);
   });
 
   app.addEventListener('change', function (ev) {
