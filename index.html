@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-AU">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -13,11 +13,11 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="styles.css">
 <script>
-  // Light unless the person has chosen dark. Set before paint, so there is no flash.
-  try { document.documentElement.dataset.theme = localStorage.getItem('walkies_theme') || 'light'; }
+  // Light unless the person picked Dark or System in Settings. Set before paint, so there is no flash.
+  try { var th = localStorage.getItem('walkies_theme') || 'light'; if (th !== 'system') document.documentElement.dataset.theme = th; }
   catch (e) { document.documentElement.dataset.theme = 'light'; }
 </script>
 </head>
@@ -25,33 +25,28 @@
 
 <div id="app" class="app"><div class="screen center"><p class="meta">Loading…</p></div></div>
 
-<div class="toast" id="toast" role="status"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><svg class="px" id="toastDog" width="24" height="24" viewBox="-1 -1 12 12" aria-hidden="true"></svg><span class="msg" id="toastMsg"></span><button type="button" id="toastUndo" data-sfx="back" hidden>Undo</button></div>
 
-<dialog class="about" id="about">
+<dialog class="dialog" id="confirm"><form method="dialog" class="in">
+  <h2 id="confirmTitle"></h2>
+  <p id="confirmBody"></p>
+  <div class="row"><button class="btn" value="keep" data-sfx="back" id="confirmKeep"><span class="glyph">B</span><span></span></button><button class="btn danger" value="act" id="confirmAct"><span class="glyph">X</span><span></span></button></div>
+</form></dialog>
+
+<dialog class="dialog" id="about"><div class="in">
   <svg class="px lock" width="117" height="30" viewBox="0 0 39 10" id="aboutLock" aria-label="ROWMI"></svg>
-  <p><b>Walkies</b> version 1.0.0</p>
+  <p><b style="color:var(--text-high)">Walkies</b> <span class="num">version 1.1.0</span></p>
   <p>Playful tools with a lot of bark.</p>
-  <p style="color:var(--muted)">Made in memory of Rommel.</p>
-  <div class="row" style="margin-bottom:12px">
-    <button class="btn" type="button" id="pushBtn" data-sfx="tick">Turn on notifications</button>
-    <button class="btn" type="button" id="themeBtn" data-sfx="tick">Dark mode</button>
-  </div>
-  <form method="dialog"><button class="btn" type="submit" data-sfx="back">Close</button></form>
-</dialog>
+  <p>Made in memory of Rommel.</p>
+  <div class="row"><button class="btn" type="button" data-sfx="back" data-close><span class="glyph">B</span>Close</button></div>
+</div></dialog>
 
 <div class="boot" id="boot" aria-label="Starting. Press anywhere to skip.">
   <svg viewBox="0 0 64 40" aria-hidden="true">
     <rect class="wipe" x="0" y="0" width="64" height="40" style="fill:var(--shell)"/>
-    <g transform="translate(12 15)">
-      <g id="bootDog"></g>
-      <g class="bw" id="bootWord"></g>
-      <g id="bootEmote" class="bemote">
-        <rect x="4" y="-6" width="2" height="3" fill="#D9893B"/>
-        <rect x="4" y="-2" width="2" height="1" fill="#D9893B"/>
-      </g>
-    </g>
-    <text class="bname" x="32" y="35">Walkies</text>
+    <g transform="translate(12 15)"><g id="bootDog"></g><g id="bootGhost" opacity=".35"></g><g class="bw" id="bootWord"></g><g id="bootEmote" class="bemote"><rect x="4" y="-6" width="2" height="3" fill="#D9893B"/><rect x="4" y="-2" width="2" height="1" fill="#D9893B"/></g></g>
   </svg>
+  <span class="bname pixel">Walkies</span>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>

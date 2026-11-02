@@ -1,263 +1,357 @@
-/* ===== Walkies — ROWMI tokens. Shell: Coral. ===== */
-:root{
-  --shell:#F26B5B; --shell-deep:#A13420;
-  --paper:#ECEEF1; --raised:#FFFFFF; --sunken:#F4F5F7; --grid:#DDE1E6; --frame:#C9CED6;
-  --ink:#16181D; --soft:#3A3F48; --muted:#5B6270; --on-ink:#F4F5F7; --faint:#9EA5B0;
-  --tan:#D9893B; --blue:#2F6FE0; --sel-soft:#E3ECFC; --danger:#C0352F; --on-danger:#FFFFFF; --drop:#000000;
-  --head-ink:#16181D;
-  --f-pixel:'Silkscreen', ui-monospace, monospace;
-  --f-ui:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --spring:cubic-bezier(.34,1.56,.64,1);
-  color-scheme:light;
-}
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --paper:#121418; --raised:#1A1D22; --sunken:#0E1013; --grid:#1B1E24; --frame:#2E333B;
-  --ink:#ECEEF1; --soft:#C3C8D0; --muted:#9EA5B0; --on-ink:#16181D; --faint:#5B6270;
-  --shell-deep:var(--shell); --tan:#E8A96B; --blue:#7AA7F2; --sel-soft:#1D2A40; --danger:#F08A84; --on-danger:#16181D;
-  color-scheme:dark; }}
-:root[data-theme="dark"]{
-  --paper:#121418; --raised:#1A1D22; --sunken:#0E1013; --grid:#1B1E24; --frame:#2E333B;
-  --ink:#ECEEF1; --soft:#C3C8D0; --muted:#9EA5B0; --on-ink:#16181D; --faint:#5B6270;
-  --shell-deep:var(--shell); --tan:#E8A96B; --blue:#7AA7F2; --sel-soft:#1D2A40; --danger:#F08A84; --on-danger:#16181D;
-  color-scheme:dark; }
+/* ===== ROWMI tokens v1.0, verbatim from tokens/rowmi.css. Never edit here; set this app's shell below. ===== */
+:root {
+  /* Core palette */
+  --paper: #ECEEF1;            /* the ground of everything */
+  --rommel-black: #16181D;     /* his coat: text, the dog, filled buttons */
+  --rommel-tan: #D9893B;       /* his markings, and ROWMI's own colour */
+  --cartridge-grey: #C9CED6;   /* frames, borders, the 2 px pixel drop */
+  --deep-tan: #9C4F12;         /* tan for text on Paper */
+  --cursor-blue: #2F6FE0;      /* selection and keyboard focus only */
+  --tongue-pink: #E07A6B;      /* Rommel only */
+  --tan-soft: #F8E2CC;         /* Rommel's markings when he sits on Tan */
 
+  /* Surfaces and text, named by job */
+  --surface-base: #ECEEF1;  --surface-raised: #FFFFFF;  --surface-sunken: #F4F5F7;
+  --grid: #DDE1E6;          --border: #C9CED6;          --border-strong: #5B6270;
+  --text-high: #16181D;     --text-medium: #5B6270;
+  --ink: #16181D;           --on-ink: #F4F5F7;
+  --rust: #D9893B;          --rust-text: #9C4F12;       --rust-soft: #F8E2CC;
+  --signal: #2F6FE0;        --signal-soft: #E3ECFC;
+
+  /* Meaning colours: meaning beats brand, and never colour alone */
+  --success: #1F7A44;  --success-soft: #DDF1E4;
+  --warning: #8A5A00;  --warning-soft: #FBEBC8;
+  --danger:  #C0352F;  --danger-soft:  #FBE1DF;  --on-danger: #FFFFFF;
+
+  /* App shells: one per app. Set --shell and --shell-text once at the root of each app.
+     Text ON a shell is always --ink. --shell-text is the shell's deep tone for words on Paper. */
+  --shell-edgehop:   #2FC7A1;  --shell-edgehop-deep:   #0E6E57;   /* Mint */
+  --shell-saveforge: #F0548C;  --shell-saveforge-deep: #A8174F;   /* Berry */
+  --shell-minibot:   #9BCB3B;  --shell-minibot-deep:   #4A6B12;   /* Lime */
+  --shell-vitacart:  #F4C430;  --shell-vitacart-deep:  #7A5A00;   /* Gold */
+  --shell-howl:      #B497F2;  --shell-howl-deep:      #5B3AA8;   /* Lilac */
+  --shell: var(--shell-edgehop);  --shell-text: var(--shell-edgehop-deep);
+
+  /* Type: two faces, two jobs */
+  --f-pixel: 'Silkscreen', ui-monospace, monospace;      /* titles, labels, short words. Sizes 8, 16, 24, 32, 64 only */
+  --f-ui: 'IBM Plex Mono', ui-monospace, monospace;      /* everything people read or type. Weights 400 and 600 only */
+
+  /* Space and shape: 4 px scale, pixel art on 8 */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+  --r-outer: 6px; --r-inner: 4px;
+  --frame: 0 2px 0 var(--border);   /* the only depth: 1 px border + 2 px hard drop. No glows, no gradients. */
+
+  /* Motion. UI chrome may spring; pixel art moves in whole pixels on frame ticks and never scales, eases or fades. */
+  --t-fast: 100ms; --t-mid: 200ms; --t-slow: 300ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);              /* menus, slides */
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);   /* cursor, switches, pops */
+  --t-cursor: 240ms;
+  --frame-tick: 16.667ms;                           /* 60 Hz; pixel art animates with steps() in multiples of this */
+}
+
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --surface-base: #121418;  --surface-raised: #1A1D22;  --surface-sunken: #0E1013;  --grid: #1B1E24;
+  --border: #2E333B;        --border-strong: #8A919C;
+  --text-high: #ECEEF1;     --text-medium: #9EA5B0;
+  --ink: #F4F5F7;           --on-ink: #16181D;
+  --rust: #E8A96B;          --rust-text: #E8A96B;       --rust-soft: #3A2A1C;
+  --signal: #7AA7F2;        --signal-soft: #1D2A40;
+  --success: #6CC28F;  --success-soft: #17301F;
+  --warning: #E9B65A;  --warning-soft: #33290F;
+  --danger:  #F08A84;  --danger-soft:  #3A1C1B;  --on-danger: #16181D;
+  --shell-text: var(--shell);   /* on dark, shell-coloured words use the shell itself */
+  color-scheme: dark;
+}}
+:root[data-theme="dark"] {
+  --surface-base: #121418;  --surface-raised: #1A1D22;  --surface-sunken: #0E1013;  --grid: #1B1E24;
+  --border: #2E333B;        --border-strong: #8A919C;
+  --text-high: #ECEEF1;     --text-medium: #9EA5B0;
+  --ink: #F4F5F7;           --on-ink: #16181D;
+  --rust: #E8A96B;          --rust-text: #E8A96B;       --rust-soft: #3A2A1C;
+  --signal: #7AA7F2;        --signal-soft: #1D2A40;
+  --success: #6CC28F;  --success-soft: #17301F;
+  --warning: #E9B65A;  --warning-soft: #33290F;
+  --danger:  #F08A84;  --danger-soft:  #3A1C1B;  --on-danger: #16181D;
+  --shell-text: var(--shell);
+  color-scheme: dark;
+}
+
+/* Rommel never changes colour. On dark grounds he keeps black, tan and pink and gets a 1 px Paper outline (see logo/mark). */
+.rowmi-pixel { font-family: var(--f-pixel); -webkit-font-smoothing: none; font-smooth: never; font-weight: 400; }
+.rowmi-px { shape-rendering: crispEdges; image-rendering: pixelated; }
+
+/* This app's shell: Walkies is Coral, a family app outside the five product shells.
+   Black on Coral is 6.6:1; the deep tone is for coral words on Paper. */
+:root{ --shell-walkies: #F26B5B; --shell-walkies-deep: #A13420; --shell: var(--shell-walkies); --shell-text: var(--shell-walkies-deep); }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --shell-text: var(--shell); } }
+:root[data-theme="dark"]{ --shell-text: var(--shell); }
+
+/* ===== Base ===== */
 *{box-sizing:border-box}
-html,body{margin:0; min-height:100%; background:var(--sunken)}
-body{color:var(--ink); font-family:var(--f-ui); font-size:15px; line-height:1.55; overflow-x:hidden}
+html,body{margin:0; min-height:100%; background:var(--surface-sunken)}
+body{color:var(--text-high); font-family:var(--f-ui); font-size:14px; line-height:1.55; overflow-x:hidden}
 .pixel{font-family:var(--f-pixel); font-weight:400; -webkit-font-smoothing:none; font-smooth:never}
 svg.px{display:block; shape-rendering:crispEdges}
-:focus-visible{outline:3px solid var(--blue); outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+b,strong{font-weight:600}
+:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+[hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 
-/* ===== Shell: one phone-width column on grid paper ===== */
+/* ===== One phone-width column on grid paper ===== */
 .app{display:flex; justify-content:center; min-height:100vh; min-height:100dvh}
-.screen{width:100%; max-width:440px; min-height:100vh; min-height:100dvh; background:var(--paper); display:flex; flex-direction:column;
+.screen{width:100%; max-width:440px; min-height:100vh; min-height:100dvh; background:var(--surface-base); display:flex; flex-direction:column;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:16px 16px; padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  background-size:16px 16px}
 .screen.center{align-items:center; justify-content:center; text-align:center; gap:16px; padding:24px 16px}
 
-/* ===== Header: app is the hero, Rommel is the signature ===== */
-.head{position:sticky; top:0; z-index:20; background:var(--shell); color:var(--head-ink);
-  border-bottom:2px solid var(--head-ink); padding:0 12px; min-height:64px; display:flex; align-items:center; gap:8px}
+/* ===== Header: the app is the hero, Rommel is the signature. No ROWMI wordmark here. ===== */
+.head{position:sticky; top:0; z-index:20; background:var(--shell); color:#16181D; border-bottom:2px solid #16181D;
+  padding:0 12px; min-height:64px; display:flex; align-items:center; gap:12px}
 .head .appname{font-size:32px; line-height:1}
-.head .sub{font-size:12px; color:var(--head-ink); opacity:.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; display:block}
-.head .titles{min-width:0; display:flex; flex-direction:column}
-.head .btn{background:transparent; color:var(--head-ink); border-color:var(--head-ink); box-shadow:0 2px 0 var(--head-ink)}
-.head .spacer{flex:1}
-.dogbtn{background:none; border:0; padding:0; cursor:pointer; flex:none; min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center}
-.adminbar{background:var(--ink); color:var(--on-ink); font-size:12px; padding:5px 16px}
+.dogbtn{display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; padding:0; border:0; background:none; cursor:pointer; border-radius:var(--r-inner); flex:none}
+.dogbtn.hop svg{animation:hop .3s steps(3,end)}
+@keyframes hop{50%{transform:translateY(-8px)}}      /* two of his pixels at 40 px */
+.adminbar{background:var(--ink); color:var(--on-ink); font-size:12px; padding:4px 16px}
 
-.body{padding:12px 16px 20px; display:flex; flex-direction:column; gap:12px; flex:1}
-.stack{display:flex; flex-direction:column; gap:12px; padding:0 16px; width:100%}
+.body{padding:12px 16px calc(var(--bar-h, 0px) + 32px); display:flex; flex-direction:column; gap:12px; flex:1}
 h2,h3{margin:0}
-.ttl{font-weight:600; font-size:15px; display:block; min-width:0}
+.ttl{font-weight:600; font-size:14px; display:block; min-width:0}
 .ttl.clip{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.h-pixel{font-family:var(--f-pixel); font-weight:400; font-size:16px; -webkit-font-smoothing:none; margin:6px 0 0}
+.h-pixel{font-family:var(--f-pixel); font-weight:400; font-size:16px; line-height:1.25; -webkit-font-smoothing:none; margin:8px 0 0}
 .h-pixel.lg{font-size:24px}
-.meta{color:var(--muted); font-size:12px; margin:0}
-.lead{font-size:15px; margin:0}
+.label{font-family:var(--f-pixel); font-weight:400; font-size:16px; line-height:1.25; -webkit-font-smoothing:none; margin:8px 0 0}
+.meta{color:var(--text-medium); font-size:12px; margin:0}
+.dim{color:var(--text-medium); font-weight:400}
+.hair{height:1px; background:var(--border); border:0; margin:4px 0; width:100%}
 
-/* ===== Buttons ===== */
-.btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; min-width:44px;
-  padding:0 12px; border-radius:6px; border:1px solid var(--frame); background:var(--raised); color:var(--ink);
-  box-shadow:0 2px 0 var(--frame); font:inherit; font-size:14px; cursor:pointer; text-decoration:none; white-space:nowrap;
-  transition:transform .16s var(--spring), box-shadow .1s}
-.btn:active{transform:translateY(2px) scale(.97); box-shadow:none; transition-duration:.08s}
-.btn:disabled{color:var(--muted); background:var(--sunken); box-shadow:none; cursor:default; transform:none}
-.btn.primary{background:var(--ink); color:var(--on-ink); border-color:var(--ink); box-shadow:0 2px 0 var(--drop)}
-.btn.on{background:var(--shell); color:#16181D; border-color:var(--ink); box-shadow:0 2px 0 var(--ink)}
-.btn.danger{background:var(--danger); color:var(--on-danger); border-color:var(--danger); box-shadow:0 2px 0 var(--frame)}
-.btn.icon{width:44px; padding:0}
-.btn.wide{width:100%}
-.glyph{width:24px; height:24px; border-radius:12px; display:inline-flex; align-items:center; justify-content:center;
-  font-family:var(--f-pixel); font-size:16px; -webkit-font-smoothing:none; background:var(--ink); color:var(--on-ink); flex:none}
-.btn.primary .glyph{background:var(--shell); color:#16181D}
+/* ===== Tabs (hub bar): 2 to 5. On a phone they share the width; the ink indicator springs between them. ===== */
+.hub{position:sticky; top:64px; z-index:15; padding:8px 16px; background:var(--surface-base); border-bottom:1px solid var(--border)}
+.tabbar{position:relative; display:grid; grid-template-columns:repeat(var(--n,4),1fr); background:var(--surface-raised); border:1px solid var(--border); border-radius:var(--r-outer); padding:4px}
+.tabbar .ind{position:absolute; top:4px; left:4px; width:calc((100% - 8px) / var(--n,4)); height:calc(100% - 8px); background:var(--ink); border-radius:var(--r-inner);
+  transform:translateX(calc(100% * var(--i,0))); transition:transform .26s var(--ease-spring)}
+.tabbar.moved .ind{animation:indslide .26s var(--ease-spring)}
+@keyframes indslide{from{transform:translateX(calc(100% * var(--from,0)))}}
+.tabbar button{position:relative; z-index:1; min-height:44px; background:none; border:0; font-family:var(--f-ui); font-size:13px; color:var(--text-medium); cursor:pointer; border-radius:var(--r-inner); transition:color .1s steps(1,end)}
+.tabbar button[aria-selected="true"]{color:var(--on-ink)}
+.page{animation:slidein .26s var(--ease)}
+.page.from-left{animation-name:slidein-l}
+@keyframes slidein{from{transform:translateX(24px)}}
+@keyframes slidein-l{from{transform:translateX(-24px)}}
+
+/* ===== Buttons: verb + object. One filled per section, never two side by side. ===== */
+.btn{display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0 16px 0 10px; border-radius:var(--r-outer); font-family:var(--f-ui); font-size:14px; cursor:pointer; border:1px solid var(--border); background:var(--surface-raised); color:var(--text-high); box-shadow:0 2px 0 var(--border); text-decoration:none; white-space:nowrap;
+  transition:transform .16s var(--ease-spring), box-shadow .1s ease-out, background-color .1s ease-out}
+.btn:active{transform:translateY(2px) scale(.97,.94); transition-duration:.08s; box-shadow:0 0 0 var(--border)}
+.btn.primary{background:var(--ink); color:var(--on-ink); border-color:var(--ink); box-shadow:0 2px 0 var(--border-strong)}
+.btn.ghost{background:transparent; border-color:transparent; box-shadow:none; padding:0 12px}
+.btn.danger{background:var(--danger); color:var(--on-danger); border-color:var(--danger); box-shadow:0 2px 0 var(--border-strong)}
+.btn[disabled],.btn:disabled{background:var(--surface-sunken); color:var(--text-medium); border-color:var(--border); box-shadow:none; cursor:not-allowed; filter:none; transform:none}
+.btn.icon{width:44px; padding:0; justify-content:center}
+.btn.wide{width:100%; justify-content:center}
+/* Pressed (a vote you've given): ink, like a pressed segment. Never the shell. */
+.btn[aria-pressed="true"]{background:var(--ink); color:var(--on-ink); border-color:var(--ink); box-shadow:0 2px 0 var(--border-strong)}
+.glyph{font-family:var(--f-ui); width:20px; height:20px; border-radius:10px; background:var(--ink); color:var(--on-ink); font-size:11px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0}
+.btn.primary .glyph{background:var(--rust); color:#16181D}
+.btn.danger .glyph{background:var(--on-danger); color:var(--danger)}
+.btn[disabled] .glyph,.btn:disabled .glyph{background:var(--border); color:var(--text-medium)}
+.head .btn{background:transparent; color:#16181D; border-color:#16181D; box-shadow:0 2px 0 #16181D}   /* on the shell: black on shell, both themes */
+.ico{display:block; flex:none; shape-rendering:crispEdges}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .row>input,.row>select{flex:1; min-width:120px}
-
 @media (hover: hover) {
-  .btn:hover:not(:disabled){ background:var(--sunken); border-color:var(--ink) }
-  .btn.primary:hover:not(:disabled){ background:var(--soft) }
-  .btn.danger:hover:not(:disabled){ filter:brightness(1.1) }
-  .btn.on:hover{ filter:brightness(1.05) }
-  .card:hover{ border-color:var(--ink) }
-  .chip:hover:not(.on){ border-color:var(--ink) }
-  .tabs button:hover:not(.on){ color:var(--ink) }
-  .dogbtn:hover{ filter:brightness(1.08) }
+  .btn:hover:not(:disabled){ background:var(--surface-sunken) }
+  .btn.primary:hover:not(:disabled),.btn[aria-pressed="true"]:hover{ background:var(--ink); filter:brightness(1.25) }
+  .btn.danger:hover:not(:disabled){ background:var(--danger); filter:brightness(1.1) }
+  .btn.ghost:hover{ background:var(--surface-sunken) }
+  .card:hover{ background:var(--surface-sunken) }
+  .chip:hover:not(.on){ border-color:var(--border-strong) }
 }
 
-/* ===== Cards ===== */
-.card{display:flex; gap:12px; align-items:center; width:100%; text-align:left; font:inherit; font-size:15px; color:var(--ink);
-  background:var(--raised); border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px; padding:12px; cursor:pointer}
+/* ===== Action bar: Settings on the left, item actions on the right, A last and filled ===== */
+.actbar{position:fixed; left:0; right:0; bottom:0; z-index:15; background:var(--surface-raised); border-top:1px solid var(--border);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.actbar .in{max-width:408px; margin:0 auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.actbar .spacer{flex:1}
+
+/* ===== Cards: list tiles with a picture well. The frame is the only depth. ===== */
+.card{display:flex; gap:12px; align-items:center; width:100%; text-align:left; font:inherit; font-size:14px; color:var(--text-high);
+  background:var(--surface-raised); border:1px solid var(--border); box-shadow:var(--frame); border-radius:var(--r-outer); padding:12px; cursor:pointer}
 .card.static{cursor:default}
-.card.slot{border:1px dashed var(--ink); box-shadow:none; background:var(--sunken)}
+.card.slot{border:1px dashed var(--border-strong); box-shadow:none; background:var(--surface-sunken)}
 .card.travel{border-left:4px solid var(--ink)}
-.sc{width:52px; height:52px; flex:none; border:1px solid var(--frame); border-radius:4px; overflow:hidden; background:var(--sunken)}
+.sc{position:relative; width:52px; height:52px; flex:none; border:1px solid var(--border); border-radius:var(--r-inner); overflow:hidden; background:var(--surface-sunken)}
 .sc svg,.hero svg{width:100%; height:100%; display:block; shape-rendering:crispEdges}
-.inf{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; align-items:flex-start}
-.trip-row{align-items:flex-start; flex-direction:column; gap:2px}
+.inf{flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; align-items:flex-start}
+.trip-row{align-items:flex-start; flex-direction:column; gap:4px}
 .av{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; flex:none;
-  border:1px solid var(--ink); border-radius:4px; color:#16181D; font-family:var(--f-pixel); font-size:16px;
-  -webkit-font-smoothing:none; line-height:1; vertical-align:middle; margin-right:6px}
+  border:1px solid #16181D; border-radius:var(--r-inner); color:#16181D; font-family:var(--f-pixel); font-size:16px;
+  -webkit-font-smoothing:none; line-height:1; vertical-align:middle}
 .av.former{border-style:dotted; opacity:.55}
-.ico{flex:none}
-.btn .ico{margin:0}
-.tag{font-size:12px; line-height:16px; padding:2px 6px; border-radius:4px; border:1px solid var(--ink); display:inline-block}
-.tag.ok{background:var(--ink); color:var(--on-ink)}
+.tag{font-size:12px; line-height:16px; padding:2px 6px; border-radius:var(--r-inner); border:1px solid var(--border-strong); display:inline-block; color:var(--text-high)}
+.tag.ok{background:var(--ink); color:var(--on-ink); border-color:var(--ink)}
 .tag.slot,.tag.maybe{border-style:dashed}
+/* Booked is a meaning, so it gets the meaning colour, the square and the word. */
+.tag.booked{background:var(--success-soft); border-color:var(--success); display:inline-flex; align-items:center; gap:6px}
+.tag.booked::before{content:""; width:8px; height:8px; background:var(--success)}
 /* A card's second row: who on the left, chips after, votes on the right edge. */
 .mrow{display:flex; align-items:center; gap:8px; width:100%; min-width:0; margin:0}
-.mrow .av{margin-right:0}
-.votes{margin-left:auto; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600;
-  font-variant-numeric:tabular-nums}
-.votes.none{color:var(--muted); font-weight:400}
-.dim{color:var(--muted); font-weight:400}
-.chip{position:relative}
-.chip .n{position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:9px;
-  background:var(--shell); color:#16181D; border:1px solid var(--ink); font-size:11px; font-weight:600;
-  line-height:16px; text-align:center; font-variant-numeric:tabular-nums}
-.tag.booked{background:var(--shell); color:#16181D; border-color:#16181D}
-
-/* ===== Tabs ===== */
-.tabs{display:grid; grid-template-columns:repeat(4,1fr); border-bottom:2px solid var(--ink); background:var(--raised); position:sticky; top:64px; z-index:15}
-.tabs button{min-height:46px; border:0; background:transparent; font:inherit; font-size:12px; color:var(--muted); cursor:pointer; padding:0 2px}
-.tabs button.on{color:var(--shell-deep); font-weight:600; box-shadow:inset 0 -3px 0 var(--shell)}
+.votes{margin-left:auto; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; font-variant-numeric:tabular-nums}
+.votes.none{color:var(--text-medium); font-weight:400}
 
 /* ===== Day strip ===== */
-.daybar{display:flex; gap:8px; overflow-x:auto; padding:8px 16px 8px; margin:0 -16px; scrollbar-width:none}
+.daybar{display:flex; gap:8px; overflow-x:auto; padding:8px 16px; margin:0 -16px; scrollbar-width:none}
 .daybar::-webkit-scrollbar{display:none}
-.chip{flex:none; min-width:52px; min-height:48px; border:1px solid var(--frame); border-radius:6px; background:var(--raised);
-  font:inherit; font-size:12px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px 4px; color:var(--ink)}
-.chip small{font-size:10px; color:var(--muted)}
+.chip{position:relative; flex:none; min-width:52px; min-height:48px; border:1px solid var(--border); border-radius:var(--r-outer); background:var(--surface-raised);
+  font:inherit; font-size:14px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px 8px; color:var(--text-high)}
+.chip small{font-size:12px; color:var(--text-medium)}
 .chip.on{background:var(--ink); color:var(--on-ink); border-color:var(--ink)}
 .chip.on small{color:var(--on-ink)}
-.chip.today{border-color:var(--shell); border-width:2px}
+/* Today is the live day: rust lights up what's live. */
+.chip.today{border:2px solid var(--rust)}
+.chip .n{position:absolute; top:-8px; right:-8px; min-width:20px; height:20px; padding:0 4px; border-radius:10px;
+  background:var(--rust); color:#16181D; font-size:12px; font-weight:600; line-height:20px; text-align:center; font-variant-numeric:tabular-nums}
 
 /* ===== Now: the day as a timeline Rommel walks down ===== */
 .tl{display:grid; grid-template-columns:52px 1fr; gap:12px; align-items:center;
-  background:linear-gradient(var(--frame),var(--frame)) no-repeat 25px 0; background-size:2px 100%}
+  background:linear-gradient(var(--border),var(--border)) no-repeat 25px 0; background-size:2px 100%}
 .tl-rail{display:flex; align-items:center; justify-content:center}
-.tl-rail svg{background:var(--paper); padding:2px; border-radius:4px}
-.tl-dot{width:12px; height:12px; background:var(--paper); border:2px solid var(--frame); border-radius:50%}
+.tl-rail svg{background:var(--surface-base); padding:2px; border-radius:var(--r-inner)}
+.tl-dot{width:12px; height:12px; background:var(--surface-base); border:2px solid var(--border); border-radius:50%}
 .tl-dot.done{background:var(--ink); border-color:var(--ink)}
 .tl-item{min-width:0}
-.tl-item.here{border-color:var(--shell); border-width:2px; box-shadow:0 2px 0 var(--shell)}
+.tl-item.here{border:2px solid var(--rust); box-shadow:0 2px 0 var(--rust)}
 .tl-time{font-family:var(--f-pixel); font-size:16px; -webkit-font-smoothing:none}
 .tl-item.past{opacity:.6}
 
 /* ===== Map ===== */
-#mapbox{height:320px; border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px; overflow:hidden; background:var(--sunken)}
+#mapbox{height:320px; border:1px solid var(--border); box-shadow:var(--frame); border-radius:var(--r-outer); overflow:hidden; background:var(--surface-sunken)}
 
-/* ===== States: Rommel carries them ===== */
-.state{display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:28px 16px; color:var(--muted)}
-.state b{font-family:var(--f-pixel); font-weight:400; font-size:16px; color:var(--ink); -webkit-font-smoothing:none}
-.launchbar{display:grid; grid-template-columns:repeat(10,12px); gap:4px}
-.launchbar i{display:block; height:10px; background:var(--grid)}
-.launchbar i.on{background:var(--shell)}
+/* ===== States: empty, loading, error, success. Rommel carries them. ===== */
+.state{display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:32px 16px; color:var(--text-medium)}
+.state b{font-family:var(--f-pixel); font-weight:400; font-size:16px; color:var(--text-high); -webkit-font-smoothing:none}
+.state p,.state span{margin:0; max-width:46ch}
+/* Skeletons, never spinners, and nothing at all for the first 400 ms */
+.skel{display:flex; flex-direction:column; gap:8px; padding:16px 0; visibility:hidden; animation:skelin 0s .4s forwards}
+.skel i{display:block; height:12px; border-radius:2px; background:var(--border); animation:blink 1.2s steps(2,end) infinite}
+@keyframes skelin{to{visibility:visible}}
+@keyframes blink{50%{opacity:.45}}
 
-/* ===== Sheet ===== */
-.sheet-wrap{position:fixed; inset:0; height:100vh; height:100dvh; background:rgba(22,24,29,.45); display:flex; align-items:flex-end; justify-content:center; z-index:30}
-.sheet{width:100%; max-width:440px; max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:var(--raised); border-top:2px solid var(--ink);
-  border-radius:14px 14px 0 0; padding:6px 16px calc(20px + env(safe-area-inset-bottom,0px))}
-.sheet.opening{animation:sheetup .26s var(--spring)}
+/* ===== Sheet: the phone's floating layer, one soft shadow under the frame ===== */
+.sheet-wrap{position:fixed; inset:0; height:100vh; height:100dvh; background:rgba(22,24,29,.5); display:flex; align-items:flex-end; justify-content:center; z-index:30}
+.sheet{width:100%; max-width:440px; max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:var(--surface-raised);
+  border:1px solid var(--border); border-bottom:0; border-radius:var(--r-outer) var(--r-outer) 0 0; box-shadow:0 -12px 24px rgba(22,24,29,.16);
+  padding:4px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+.sheet.opening{animation:sheetup .26s var(--ease-spring)}
 @keyframes sheetup{from{transform:translateY(40px)} to{transform:none}}
-.sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--raised); padding:6px 0 8px; z-index:1}
-.grab{width:44px; height:6px; background:var(--frame); border-radius:3px}
+.sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--surface-raised); padding:8px 0; z-index:1}
+.grab{width:44px; height:4px; background:var(--border); border-radius:2px}
 .sbody{display:flex; flex-direction:column; gap:12px}
-.hero{height:170px; border:1px solid var(--frame); border-radius:6px; overflow:hidden; background:#D7E6F5; position:relative}
-.sc{position:relative}
+.hero{position:relative; height:168px; border:1px solid var(--border); border-radius:var(--r-outer); overflow:hidden; background:#D7E6F5}   /* the scenes' sky, so a drawing fills the frame */
 .hero img,.sc img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
-.hero .credit{position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:2px 6px;
-  background:rgba(22,24,29,.6); color:#F4F5F7}
+.hero .credit{position:absolute; left:0; right:0; bottom:0; font-size:12px; padding:2px 8px; background:rgba(22,24,29,.6); color:#F4F5F7}
 .upl{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .upl input[type=file]{display:none}
-.note{background:var(--sunken); border:1px solid var(--frame); border-radius:6px; padding:8px 12px; font-size:14px}
+.note{background:var(--surface-sunken); border:1px solid var(--border); border-radius:var(--r-outer); padding:8px 12px; font-size:14px}
 .note.code{word-break:break-all; font-size:12px}
-.src{font-size:14px; color:var(--blue); display:inline-flex; align-items:center; min-height:44px}
 .plan{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end}
 .plan .lbl{flex:0 0 auto}
 .plan .lbl:first-child{flex:1 1 100%}
 .plan input[type=time]{width:140px}
 .plan input[type=number]{width:92px}
-.cm{font-size:14px; border-top:1px solid var(--frame); padding:8px 0; display:flex; gap:0; align-items:center}
+.cm{font-size:14px; border-top:1px solid var(--border); padding:8px 0; display:flex; gap:8px; align-items:center}
 .cm .inf{gap:0}
-.sugg{border:1px dashed var(--frame); border-radius:6px; padding:12px; background:var(--sunken); display:flex; flex-direction:column; gap:8px}
-.nearby{display:flex; flex-direction:column; gap:6px; padding-bottom:8px; border-bottom:1px solid var(--frame)}
+.sugg{border:1px dashed var(--border); border-radius:var(--r-outer); padding:12px; background:var(--surface-sunken); display:flex; flex-direction:column; gap:8px}
+.nearby{display:flex; flex-direction:column; gap:8px; padding-bottom:8px; border-bottom:1px solid var(--border)}
 .nearby:last-child{border-bottom:0; padding-bottom:0}
-.log{font-size:12px; color:var(--muted); border-top:1px solid var(--frame); padding:4px 0}
-.empty{font-size:14px; color:var(--muted); text-align:center; padding:18px 0; margin:0}
+.log{font-size:12px; color:var(--text-medium); border-top:1px solid var(--border); padding:4px 0}
+.empty{font-size:14px; color:var(--text-medium); text-align:center; padding:16px 0; margin:0}
 .err{color:var(--danger); font-size:13px; min-height:16px; margin:0}
-.notice{font-size:14px; background:var(--raised); border:1px solid var(--frame); border-radius:6px; padding:8px 12px; margin:12px 16px 0}
+.notice{font-size:14px; background:var(--surface-raised); border:1px solid var(--border); border-radius:var(--r-outer); padding:8px 12px; margin:12px 16px 0}
 
 /* ===== Suggestions under a box ===== */
-.suggest{display:flex; flex-direction:column; border:1px solid var(--frame); border-radius:6px; background:var(--raised);
-  box-shadow:0 2px 0 var(--frame); overflow:hidden}
+.suggest{display:flex; flex-direction:column; border:1px solid var(--border); border-radius:var(--r-outer); background:var(--surface-raised); box-shadow:var(--frame); overflow:hidden}
 .suggest:empty{display:none}
 .sug{display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:44px; padding:0 12px;
-  border:0; border-top:1px solid var(--grid); background:none; font:inherit; font-size:15px; color:var(--ink);
-  text-align:left; cursor:pointer}
+  border:0; border-top:1px solid var(--grid); background:none; font:inherit; font-size:14px; color:var(--text-high); text-align:left; cursor:pointer}
 .sug:first-child{border-top:0}
-.sug:active{background:var(--sel-soft)}
-@media (hover: hover) { .sug:hover{ background:var(--sunken) } }
+.sug:active{background:var(--signal-soft)}
+@media (hover: hover) { .sug:hover{ background:var(--surface-sunken) } }
 .sug span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .sug .meta{flex-shrink:0; max-width:45%}
 
-/* ===== Forms ===== */
-.lbl{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
-input,select,textarea{font:inherit; font-size:16px; min-height:44px; padding:8px 12px; border:1px solid var(--frame);
-  border-radius:6px; background:var(--raised); color:var(--ink); width:100%; min-width:0}
-input[type=checkbox]{width:auto; min-height:0; accent-color:var(--blue)}
+/* ===== Fields. Labels 13/600, help 12. Inputs stay 16 px: smaller text makes iPhone Safari zoom on every tap. ===== */
+.lbl{font-size:13px; font-weight:600; color:var(--text-high); display:flex; flex-direction:column; gap:6px}
+input,select,textarea{font-family:var(--f-ui); font-size:16px; min-height:44px; padding:8px 12px; border:1px solid var(--border);
+  border-radius:var(--r-outer); background:var(--surface-raised); color:var(--text-high); width:100%; min-width:0; font-weight:400}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--signal); outline-offset:0; border-color:var(--signal)}
+input[type=checkbox]{width:auto; min-height:0; accent-color:var(--signal)}
 input[type=time],input[type=number]{width:auto}
-::selection{background:var(--sel-soft)}
+::selection{background:var(--signal-soft)}
 
-/* ===== Toast ===== */
-.toast{position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translate(-50%,140px);
-  background:var(--ink); color:var(--on-ink); padding:12px 16px; border-radius:6px; font-size:14px; z-index:60;
-  transition:transform .24s var(--spring); max-width:calc(100% - 32px)}
-.toast:empty{visibility:hidden}
-.toast.show{transform:translate(-50%,0)}
+/* ===== Switches, segments, volume: they apply at once, there is no Save ===== */
+.setrow{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; min-height:44px}
+.toggle{display:inline-flex; align-items:center; gap:12px; font-size:14px; cursor:pointer; min-height:44px; background:none; border:0; color:var(--text-high); font-family:var(--f-ui); padding:0; text-align:left}
+.toggle .track{width:44px; height:24px; padding:2px; border-radius:var(--r-inner); background:var(--border); display:flex; flex-shrink:0; transition:background-color .1s ease-out}
+.toggle .knob{width:20px; height:20px; border-radius:2px; background:var(--surface-raised); transition:transform .18s cubic-bezier(.34,1.8,.64,1), background-color .1s steps(1,end)}
+.toggle[aria-checked="true"] .track{background:var(--ink)}
+.toggle[aria-checked="true"] .knob{transform:translateX(20px); background:var(--rust)}
+.seg{align-self:flex-start; display:inline-flex; gap:2px; border:1px solid var(--border); border-radius:var(--r-outer); background:var(--surface-raised); padding:3px; flex-wrap:wrap}
+.seg button{min-height:44px; min-width:44px; padding:0 12px; border:0; background:none; font-family:var(--f-ui); font-size:13px; color:var(--text-medium); border-radius:var(--r-inner); cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--on-ink)}
+.detent{display:flex; flex-direction:column; gap:4px; width:220px; max-width:100%}
+.detent input{width:100%; margin:0; padding:0; border:0; background:none; accent-color:var(--ink); height:44px; cursor:pointer}
+.bonk{animation:bonk .3s steps(5,end)}
+@keyframes bonk{20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
 
-/* ===== About ===== */
-dialog.about{border:1px solid var(--frame); border-radius:6px; background:var(--raised); color:var(--ink); padding:24px;
-  max-width:min(420px,calc(100% - 32px)); box-shadow:0 2px 0 var(--frame)}
-dialog.about::backdrop{background:rgba(22,24,29,.5)}
-dialog.about p{margin:0 0 8px}
-dialog.about .lock{margin:4px 0 16px}
+/* ===== List tiles (Settings): selection is four blue corner brackets ===== */
+.tile{position:relative; display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border); border-radius:var(--r-inner); background:var(--surface-raised); min-width:0; width:100%; font:inherit; color:inherit; text-align:left; cursor:pointer}
+.tile .ic{width:44px; height:44px; border-radius:var(--r-inner); background:var(--surface-sunken); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex-shrink:0}
+.tile .tt{display:flex; flex-direction:column; min-width:0; flex:1}
+.tile .tt b{font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.tile .tt span{font-size:12px; color:var(--text-medium); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+@media (hover: hover) { .tile:hover{ background:var(--surface-sunken) } }
 
-/* ===== Boot ===== */
-.boot{position:fixed; inset:0; z-index:70; background:var(--paper); display:flex; align-items:center; justify-content:center; padding:16px; cursor:pointer}
+/* ===== Toast: ink, a small Rommel in the reacting pose, Undo when it can be undone ===== */
+.toast{position:fixed; left:50%; bottom:calc(var(--bar-h, 0px) + 16px); transform:translate(-50%,200px); display:flex; align-items:center; gap:10px; background:var(--ink); color:var(--on-ink); padding:4px 4px 4px 12px; min-height:52px; border-radius:var(--r-outer); box-shadow:0 2px 0 var(--border-strong); font-size:13px; z-index:60; visibility:hidden; transition:transform .24s var(--ease-spring), visibility 0s .24s; max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0); visibility:visible; transition:transform .24s var(--ease-spring)}
+.toast{width:max-content}   /* left:50% would otherwise cap it at half the screen and wrap every word */
+.toast svg{flex:none}
+.toast .msg{padding-right:8px}
+.toast button{min-height:44px; padding:0 12px; border:0; border-radius:var(--r-inner); background:none; color:var(--on-ink); font:inherit; font-weight:600; text-decoration:underline; cursor:pointer}
+
+/* ===== Dialogs: only for what can't be undone, and About. One soft shadow below the frame. ===== */
+dialog.dialog{width:min(420px,calc(100% - 32px)); background:var(--surface-raised); color:var(--text-high); border:1px solid var(--border); border-radius:var(--r-outer); box-shadow:0 2px 0 var(--border), 0 12px 24px rgba(22,24,29,.16); padding:20px}
+dialog.dialog::backdrop{background:rgba(22,24,29,.5)}
+dialog.dialog .in{display:flex; flex-direction:column; gap:12px}
+dialog.dialog h2{margin:0; font-size:16px; font-weight:600; font-family:var(--f-ui)}
+dialog.dialog p{margin:0; font-size:14px; color:var(--text-medium)}
+dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:4px}
+.lock{margin:4px 0}
+
+/* ===== Boot screen: 64 x 40 dot matrix, whole dots, frame ticks, no scaling or fades ===== */
+.boot{position:fixed; inset:0; z-index:70; background:var(--surface-base); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:16px; cursor:pointer}
 .boot::before{content:""; position:absolute; inset:0; background:var(--shell); transform:scaleY(0); transform-origin:50% 100%}
-.boot svg{position:relative; width:min(92vw,560px); height:auto; max-width:100%; shape-rendering:crispEdges}
+.boot svg{position:relative; width:min(92vw,640px); height:auto; max-width:100%; shape-rendering:crispEdges}
 .boot .bw{transform:translateY(-24px)}
 .boot.booting .bw{animation:bootdrop .39s steps(1,end) forwards}
 @keyframes bootdrop{0%{transform:translateY(-18px)} 28.2%{transform:translateY(-12px)} 56.4%{transform:translateY(-6px)} 84.6%{transform:translateY(1px)} 97%{transform:translateY(1px)} 100%{transform:translateY(0)}}
-.boot .bemote{opacity:0}
-.boot .bemote.show{opacity:1}
+.boot .bemote{opacity:0} .boot .bemote.show{opacity:1}
 .boot.wiping::before,.boot.wiping .wipe{animation:bootwipe .17s steps(10,end) forwards}
 .boot .wipe{transform:scaleY(0); transform-box:fill-box; transform-origin:50% 100%}
 @keyframes bootwipe{from{transform:scaleY(0)} to{transform:scaleY(1)}}
-.boot.done .bw{animation:none; transform:none}
-.boot.done::before,.boot.done .wipe{animation:none; transform:none}
-.boot .bname{opacity:0; font-family:var(--f-pixel); font-size:8px; text-anchor:middle; fill:#16181D}
-.boot.named .bname{opacity:1}
+.boot.done .bw{animation:none; transform:none} .boot.done::before,.boot.done .wipe{animation:none; transform:none}
+.boot .bname{position:relative; font-size:24px; line-height:1; color:#16181D; visibility:hidden} .boot.named .bname{visibility:visible}
 
-/* ===== Bubbles ===== */
-.bubbles{position:fixed; inset:0; z-index:55; pointer-events:none; overflow:hidden; color:var(--ink)}
+/* ===== Easter egg: bubbles. Type "bubbles" or click Rommel five times quickly. ===== */
+.bubbles{position:fixed; inset:0; z-index:55; pointer-events:none; overflow:hidden; color:var(--text-high)}
 .bub{position:absolute; display:block; shape-rendering:crispEdges}
-.bubdog{position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:56; width:112px; height:112px;
-  background:var(--raised); border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px;
-  display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; pointer-events:none; transform:translateY(144px)}
+.bubdog{position:fixed; right:16px; bottom:calc(var(--bar-h, 0px) + 16px); z-index:56; width:112px; height:112px; background:var(--surface-raised); border:1px solid var(--border); box-shadow:var(--frame); border-radius:var(--r-outer); display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; pointer-events:none; transform:translateY(240px)}
 .bubdog.in{animation:bubin .24s steps(3,end) forwards}
 .bubdog.out{animation:bubout .24s steps(3,end) forwards}
-@keyframes bubin{from{transform:translateY(144px)} to{transform:none}}
-@keyframes bubout{from{transform:none} to{transform:translateY(144px)}}
+@keyframes bubin{from{transform:translateY(240px)} to{transform:none}}
+@keyframes bubout{from{transform:none} to{transform:translateY(240px)}}
 .bubdog.chomp svg{animation:bubchomp .16s steps(2,end)}
 @keyframes bubchomp{50%{transform:translateY(-16px)}}
-.spark{position:fixed; width:8px; height:8px; margin:-4px 0 0 -4px; background:var(--tan); pointer-events:none; z-index:57;
-  animation:spark .42s steps(4,end) forwards}
+.spark{position:fixed; width:8px; height:8px; margin:-4px 0 0 -4px; background:var(--rust); pointer-events:none; z-index:57; animation:spark .42s steps(4,end) forwards}
 @keyframes spark{to{transform:translate(var(--dx),var(--dy))}}
-
-/* Room under the last control, so a floating host badge or the home bar
-   never sits on top of something you need to tap. */
-.sbody{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
-.body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}

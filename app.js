@@ -229,91 +229,136 @@
     el.setAttribute('viewBox', dk ? '-1 -1 41 12' : '0 0 39 10');
     el.innerHTML = dog('idle', 0, 0, dk) + word(dk ? '#F4F5F7' : '#16181D', 12, 4);
   }
-  var reactT;
+  // The header pose between reactions: Idle, or Sleepy while the main view is empty
+  var base = 'idle', reactT;
+  function headDog(pose) { var el = document.getElementById('headDog'); if (el) el.innerHTML = dogSVG(pose, 40, true); }
   function react(pose, ms) {
-    var el = document.getElementById('headDog');
-    if (!el) return;
-    el.innerHTML = dogSVG(pose, 40, true);
+    headDog(pose);
     clearTimeout(reactT);
-    reactT = setTimeout(function () {
-      var e = document.getElementById('headDog');
-      if (e) e.innerHTML = dogSVG('idle', 40, true);
-    }, ms || 700);
+    reactT = setTimeout(function () { headDog(base); }, ms || 700);
+  }
+  function setBase(pose) { if (base === pose) return; base = pose; headDog(pose); }
+  function hop() {
+    var b = document.getElementById('headDog'); if (!b) return;
+    b.classList.remove('hop'); void b.offsetWidth; b.classList.add('hop');
   }
 
-  // ---------- Chip sounds ----------
-  var ac = null;
-  function audio() {
-    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
-    if (ac && ac.state === 'suspended') ac.resume();
-    return ac;
+  // ---------- Prefs (per viewer): sound on at 60 %, dog sounds on, Light unless picked ----------
+  var prefs = { sound: true, vol: 6, dog: true };
+  try { var sp = JSON.parse(localStorage.getItem('rowmi-prefs') || 'null'); if (sp) for (var pk in sp) prefs[pk] = sp[pk]; } catch (e) {}
+  function savePrefs() { try { localStorage.setItem('rowmi-prefs', JSON.stringify(prefs)); } catch (e) {} }
+  function themePref() { try { return localStorage.getItem('walkies_theme') || 'light'; } catch (e) { return 'light'; } }
+
+  // ---------- Sound: the UI guidelines' engine. Pitch up means forward and yes, down means back and no. ----------
+  var ctx = null, master = null;
+  function ac() {
+    if (!prefs.sound) return null;
+    if (!ctx) { var C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { ctx = new C(); } catch (e) { return null; } master = ctx.createGain(); master.connect(ctx.destination); }
+    master.gain.value = prefs.vol / 10 * 0.5; if (ctx.state === 'suspended') ctx.resume(); return ctx;
   }
-  var DUTY = { 12: 0.125, 25: 0.25, 50: 0.5, 75: 0.75 }, waves = {};
-  function pulseWave(c, duty) {
-    if (waves[duty]) return waves[duty];
-    var n = 32, re = new Float32Array(n), im = new Float32Array(n);
-    for (var i = 1; i < n; i++) { im[i] = 2 / (i * Math.PI) * Math.sin(i * Math.PI * duty); re[i] = 0; }
-    return (waves[duty] = c.createPeriodicWave(re, im));
+  function tone(f, d, o) {
+    o = o || {}; var c = ac(); if (!c || !prefs.vol) return;
+    var t = c.currentTime + (o.at || 0), osc = c.createOscillator(), g = c.createGain();
+    osc.type = o.type || 'square'; osc.frequency.setValueAtTime(f, t); if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + d);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.v || 0.1, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    osc.connect(g); g.connect(master); osc.start(t); osc.stop(t + d + 0.03);
   }
-  function blip(freq, dur, opt) {
-    opt = opt || {};
-    var c = audio(); if (!c) return;
-    var t = c.currentTime + (opt.at || 0);
-    var o = c.createOscillator(), g = c.createGain();
-    o.setPeriodicWave(pulseWave(c, DUTY[opt.duty || 50]));
-    o.frequency.setValueAtTime(freq, t);
-    var vol = opt.vol == null ? 10 : opt.vol, steps = Math.max(1, Math.round(dur * 64));
-    for (var i = 0; i <= steps; i++) {
-      var v = Math.max(0, vol - (opt.fade === false ? 0 : Math.round(i * vol / steps)));
-      g.gain.setValueAtTime(v / 15 * 0.12, t + i / 64);
-    }
-    g.gain.setValueAtTime(0, t + dur);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+  function noise(dur, f1, f2, v, at, q) {
+    var c = ac(); if (!c || !prefs.vol) return;
+    var len = Math.max(1, Math.floor(c.sampleRate * dur)), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = c.createBufferSource(); src.buffer = buf; var bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = q || 1.2;
+    var t = c.currentTime + (at || 0); bp.frequency.setValueAtTime(f1, t); bp.frequency.exponentialRampToValueAtTime(f2, t + dur);
+    var g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(master); src.start(t); src.stop(t + dur + 0.02);
   }
-  function tap(at, vol) {
-    var c = audio(); if (!c) return;
-    var n = Math.floor(c.sampleRate * 0.008), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0), l = 0x7FFF;
-    for (var i = 0; i < n; i++) { var bit = (l ^ (l >> 1)) & 1; l = (l >> 1) | (bit << 14); d[i] = ((l & 1) ? -1 : 1) * vol / 15 * 0.12; }
-    var s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(c.currentTime + at);
+  function voice(o) {
+    var c = ac(); if (!c || !prefs.vol) return;
+    var t = c.currentTime + (o.at || 0), osc = c.createOscillator(); osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(o.f, t); if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + (o.glide || o.dur)); if (o.then) osc.frequency.exponentialRampToValueAtTime(o.then, t + o.dur);
+    var g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.v, t + (o.attack || 0.006)); g.gain.setValueAtTime(o.v, t + o.dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    var out = g; if (o.lp) { var lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = o.lp; g.connect(lp); out = lp; }
+    if (o.vib) { var l = c.createOscillator(), lg = c.createGain(); l.frequency.value = o.vibRate || 8; lg.gain.value = o.vib; l.connect(lg); lg.connect(osc.frequency); l.start(t); l.stop(t + o.dur + 0.03); }
+    if (o.am) { var a = c.createOscillator(), agn = c.createGain(); a.frequency.value = o.amRate || 30; agn.gain.value = o.am; a.connect(agn); agn.connect(g.gain); a.start(t); a.stop(t + o.dur + 0.03); }
+    osc.connect(g); out.connect(master); osc.start(t); osc.stop(t + o.dur + 0.03);
   }
   var SFX = {
-    tick:    function () { blip(2093, 0.03, { duty: 12, vol: 7 }); },
-    confirm: function () { blip(988, 0.05, { duty: 25, vol: 8 }); blip(1319, 0.07, { duty: 25, vol: 8, at: 0.05 }); },
-    back:    function () { blip(988, 0.05, { duty: 25, vol: 8 }); blip(659, 0.07, { duty: 25, vol: 8, at: 0.05 }); },
-    error:   function () { blip(147, 0.09, { duty: 50, vol: 11 }); blip(110, 0.12, { duty: 50, vol: 11, at: 0.1 }); },
-    success: function () { [523, 659, 784, 1047].forEach(function (f, i) { blip(f, 0.09, { duty: 50, vol: 9, at: i * 0.06 }); }); },
-    yip:     function () { blip(1319, 0.05, { duty: 25, vol: 9 }); blip(1568, 0.06, { duty: 25, vol: 9, at: 0.07 }); },
-    chomp:   function () { blip(220, 0.04, { duty: 50, vol: 10 }); },
-    pop:     function () { blip(2637, 0.02, { duty: 12, vol: 6 }); tap(0.01, 4); },
-    woof:    function () { blip(392, 0.06, { duty: 50, vol: 10 }); blip(262, 0.08, { duty: 50, vol: 10, at: 0.06 }); },
-    sniff:   function () { blip(1047, 0.04, { duty: 12, vol: 6 }); blip(1245, 0.04, { duty: 12, vol: 6, at: 0.05 }); },
+    tick:    function () { tone(1320, 0.03, { v: 0.07 }); },
+    click:   function () { tone(240, 0.04, { type: 'triangle', v: 0.22 }); },
+    confirm: function () { tone(660, 0.06, { v: 0.09 }); tone(990, 0.09, { v: 0.09, at: 0.06 }); },
+    back:    function () { tone(660, 0.06, { v: 0.09 }); tone(440, 0.09, { v: 0.09, at: 0.06 }); },
+    on:      function () { tone(700, 0.05, { v: 0.09, to: 1400 }); },
+    off:     function () { tone(1000, 0.05, { v: 0.09, to: 480 }); },
+    error:   function () { tone(150, 0.09, { v: 0.13 }); tone(110, 0.13, { v: 0.13, at: 0.1 }); },
+    success: function () { [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.1, { type: 'triangle', v: 0.2, at: i * 0.06 }); }); },
+    sting:   function () { tone(1568, 0.05, { v: 0.09 }); tone(2093, 0.13, { v: 0.09, at: 0.06 }); },
+    detent:  function (n) { tone(1500 + n * 90, 0.016, { v: 0.06 }); },
+    swish:   function () { noise(0.14, 500, 3200, 0.25, 0, 1.4); },
+    // Startup: "Trot & ping", four claw taps then G5 and C6, as on the boot screen
     startup: function () {
-      [0, .11, .22, .33].forEach(function (t, i) { tap(t, 5 + i); });
-      blip(784, 0.09, { duty: 50, vol: 12, at: .42, fade: false });
-      blip(1047, 0.55, { duty: 50, vol: 13, at: .51 });
+      [0, .11, .22, .33].forEach(function (at, i) { noise(0.012, 3000, 2000, 0.05 + i * 0.015, at, 0.8); tone(1796, 0.006, { type: 'square', v: 0.03, at: at }); });
+      tone(785, 0.09, { v: 0.11, at: .42 }); tone(1049, 0.55, { v: 0.12, at: .51 });
     }
   };
+  // Dog sounds are seasoning: one per action, never the same one twice within 2 seconds
+  var DOG = {
+    woof:  function () { voice({ f: 560, to: 240, dur: 0.1, v: 0.16, lp: 2400 }); noise(0.07, 1400, 700, 0.12, 0, 1.4); voice({ f: 330, to: 170, dur: 0.11, v: 0.1, at: 0.07, lp: 1800 }); },
+    yip:   function () { voice({ f: 900, to: 1400, dur: 0.06, v: 0.11, lp: 3600 }); voice({ f: 1000, to: 1550, dur: 0.07, v: 0.11, at: 0.11, lp: 3600 }); },
+    sniff: function () { [0, 0.1, 0.2].forEach(function (at, i) { noise(0.05, 2600 + i * 400, 4200 + i * 300, 0.16, at, 2.5); }); },
+    tag:   function () { [[2637, 0], [3520, 0.07], [2960, 0.15]].forEach(function (p) { voice({ f: p[0], dur: 0.13, v: 0.05, at: p[1], attack: 0.002 }); voice({ f: p[0] * 1.007, dur: 0.12, v: 0.03, at: p[1], attack: 0.002, type: 'triangle' }); }); },
+    whine: function () { voice({ type: 'triangle', f: 980, to: 620, dur: 0.42, v: 0.16, vib: 28, vibRate: 9, attack: 0.03 }); },
+    grr:   function () { voice({ f: 82, to: 76, dur: 0.48, v: 0.12, am: 0.09, amRate: 31, lp: 650, attack: 0.03 }); },
+    awoo:  function () { voice({ type: 'triangle', f: 300, to: 540, glide: 0.25, then: 470, dur: 0.85, v: 0.18, vib: 14, vibRate: 6, attack: 0.05 }); }
+  };
+  var DOG_POSE = { woof: ['alert', 450], yip: ['happy', 450], sniff: ['idle', 380], tag: ['alert', 520], whine: ['sad', 620], grr: ['sad', 520], awoo: ['alert', 880] }, lastDog = {};
+  function bark(name) {
+    var now = Date.now(); if (lastDog[name] && now - lastDog[name] < 2000) return; lastDog[name] = now;
+    if (prefs.dog) DOG[name](); var pz = DOG_POSE[name]; react(pz[0], pz[1]); if (name === 'woof' || name === 'yip') hop();
+  }
+  // Every press answers: one capture listener, so no button can be missed. data-sfx="none" opts out.
   document.addEventListener('click', function (e) {
     var b = e.target.closest('button, [role="button"], label.btn, a.btn');
-    if (!b || b.closest('#boot')) return;
-    if (b.dataset.sfx) SFX[b.dataset.sfx]();
-    else if (b.classList.contains('primary')) SFX.confirm();
-    else SFX.tick();
+    if (!b || b.disabled || b.closest('#boot')) return;
+    var sx = b.dataset.sfx; if (sx === 'none') return;
+    if (sx && SFX[sx]) SFX[sx](); else if (b.classList.contains('primary')) SFX.confirm(); else SFX.tick();
   }, true);
 
-  // ---------- Toast ----------
-  var toastT;
-  function toast(msg, kind) {
+  // ---------- Toast: what happened, with the real noun. Undo for anything reversible. ----------
+  var toastT, undoFn = null;
+  function toast(msg, kind, opt) {
+    opt = opt || {};
     var t = document.getElementById('toast');
     if (!t || !msg) return;
-    t.textContent = msg;
+    var pose = kind === 'error' ? 'sad' : kind === 'success' ? 'happy' : kind === 'new' ? 'alert' : 'idle';
+    document.getElementById('toastMsg').textContent = msg;
+    // The toast is ink: dark in light mode, so he gets his ring there
+    document.getElementById('toastDog').innerHTML = dog(pose, 0, 0, !isDark());
+    undoFn = opt.undo || null;
+    document.getElementById('toastUndo').hidden = !undoFn;
     t.classList.add('show');
     clearTimeout(toastT);
-    toastT = setTimeout(function () { t.classList.remove('show'); }, 2600);
+    toastT = setTimeout(function () { t.classList.remove('show'); undoFn = null; }, undoFn ? 6000 : 2600);
     if (kind === 'error') { react('sad', 900); SFX.error(); }
-    else if (kind === 'success') { react('happy', 700); SFX.success(); }
-    else if (kind === 'new') { react('alert', 700); }
+    else if (kind === 'success') { react('happy', 700); hop(); SFX.success(); if (opt.dog) bark(opt.dog); }
+    else if (kind === 'new') { bark('tag'); }
   }
+  document.getElementById('toastUndo').addEventListener('click', function () {
+    var f = undoFn; undoFn = null; document.getElementById('toast').classList.remove('show'); if (f) f();
+  });
+
+  // ---------- Dialog: only for what can't be undone. The title names the action and the thing. ----------
+  function confirmAct(o) {
+    return new Promise(function (done) {
+      var d = document.getElementById('confirm');
+      document.getElementById('confirmTitle').textContent = o.title;
+      document.getElementById('confirmBody').textContent = o.body || '';
+      document.getElementById('confirmKeep').lastChild.textContent = o.keep || 'Cancel';
+      document.getElementById('confirmAct').lastChild.textContent = o.act;
+      d.addEventListener('close', function f() { d.removeEventListener('close', f); done(d.returnValue === 'act'); });
+      d.returnValue = ''; d.showModal(); document.getElementById('confirmKeep').focus(); bark('grr');
+    });
+  }
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
 
   // ---------- Scenes on the cards ----------
   var PAL = { s: '#D7E6F5', g: '#8FB069', d: '#3E4A59', t: '#D9893B', w: '#6FA8DC', r: '#E0533F', l: '#4E9A5B', m: '#5B6B7F', c: '#F4F5F7' };
@@ -360,6 +405,7 @@
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
   var ICONS = {
+    link:  ['........','....####','......##','.##..#.#','.#..#..#','.#.#....','.#......','.#####..'],
     close: ['........','.#....#.','..#..#..','...##...','...##...','..#..#..','.#....#.','........'],
     check: ['........','.......#','......##','.#...##.','.##.##..','..###...','...#....','........'],
     paw:   ['........','.##..##.','.##..##.','........','..####..','.######.','.######.','..####..'],
@@ -379,7 +425,7 @@
   }
 
   // ---------- Avatars: a colour and an initial, so names stop eating the row ----------
-  var AV = ['#F26B5B', '#2FC7A1', '#F0548C', '#9BCB3B', '#F4C430', '#B497F2'];
+  var AV = ['#D9893B', '#F1C79E', '#C9CED6', '#E8A96B', '#F8E2CC', '#DF9549'];   // rust 500, 200, Cartridge Grey, rust 300, 100, 400
   function hashOf(s) {
     var h = 0;
     for (var i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) | 0;
@@ -428,10 +474,10 @@
   function stateBlock(title, line, action) {
     return '<div class="state">' + dogSVG('sleepy', 60) + '<b>' + esc(title) + '</b><span>' + esc(line) + '</span>' + (action || '') + '</div>';
   }
-  function loadingBlock(line) {
-    var bars = '';
-    for (var i = 0; i < 10; i++) bars += '<i class="' + (i < 4 ? 'on' : '') + '"></i>';
-    return '<div class="state"><div class="launchbar">' + bars + '</div><span>' + esc(line || 'Loading…') + '</span></div>';
+  function loadingBlock(lines) {
+    var h = '';
+    for (var i = 0; i < (lines || 4); i++) h += '<i style="width:' + [92, 70, 84, 56, 76][i % 5] + '%"></i>';
+    return '<div class="skel" aria-label="Loading">' + h + '</div>';
   }
 
   // ---------- State ----------
@@ -540,6 +586,10 @@
   }
 
   function render() {
+    paint();
+    barH();
+  }
+  function paint() {
     if (!S.user) return renderSignIn();
     if (!S.tripId) return renderTrips();
     if (!S.data) return renderTripLoading();
@@ -567,16 +617,26 @@
     paintLock();
   }
 
-  function headerHTML(inTrip) {
+  function headerHTML() {
     return '<header class="head">'
-      + '<button class="dogbtn" id="headDog" data-act="secret" aria-label="Rommel">' + dogSVG('idle', 40, true) + '</button>'
-      + '<span class="pixel appname">Walkies</span><span class="spacer"></span>'
-      + (inTrip
-          ? '<button class="btn icon" data-act="add-open" aria-label="Add something to the trip" title="Add">' + icon('plus') + '</button>'
-            + '<button class="btn icon" data-act="trip-open" aria-label="Trip, people and settings" title="Trip">' + icon('menu') + '</button>'
-          : '<button class="btn icon" data-act="about" aria-label="About Walkies" title="About">' + icon('info') + '</button>'
-            + '<button class="btn" data-act="signout" data-sfx="back">Sign out</button>')
+      + '<button class="dogbtn" id="headDog" data-act="secret" data-sfx="none" aria-label="Rommel">' + dogSVG(base, 40, true) + '</button>'
+      + '<span class="pixel appname">Walkies</span>'
       + '</header>';
+  }
+  // Settings (Y) on the left, item actions on the right, the A action last and filled.
+  function actbarHTML(inTrip) {
+    return '<nav class="actbar" aria-label="Actions"><div class="in">'
+      + '<button class="btn" data-act="settings-open" data-key="y"><span class="glyph">Y</span>Settings</button>'
+      + '<span class="spacer"></span>'
+      + (inTrip
+          ? '<button class="btn primary" data-act="add-open" data-key="a"><span class="glyph">A</span>Add idea</button>'
+          : '')
+      + '</div></nav>';
+  }
+  // The bar can wrap: keep the page's end, the toast and the egg above it
+  function barH() {
+    var bar = document.querySelector('.actbar');
+    document.documentElement.style.setProperty('--bar-h', (bar ? bar.offsetHeight : 0) + 'px');
   }
 
   function renderTrips() {
@@ -585,7 +645,7 @@
         + '<span class="pixel" style="font-size:16px">' + esc(t.name) + '</span>'
         + '<span class="meta">' + (t.owner_id === S.user.id ? 'You own this' : 'Family trip') + '</span></button>';
     }).join('');
-    app.innerHTML = '<div class="screen">' + headerHTML(false)
+    app.innerHTML = '<div class="screen">' + headerHTML()
       + (S.notice ? '<p class="notice">' + esc(S.notice) + '</p>' : '')
       + '<div class="body">'
       + (list
@@ -595,30 +655,39 @@
       + '<input id="newTripName" placeholder="Name the trip" aria-label="Trip name">'
       + '<button class="btn primary wide" data-act="new-trip"><span class="glyph">A</span>Create trip</button>'
       + '<p class="err" id="tripErr"></p>'
-      + '</div></div>';
+      + '</div>' + actbarHTML(false) + (S.sheet ? sheetHTML() : '') + '</div>';
     S.notice = '';
     paintLock();
   }
 
   function renderTripLoading() {
-    app.innerHTML = '<div class="screen">' + headerHTML(false) + '<div class="body">' + loadingBlock('Fetching the trip…') + '</div></div>';
+    app.innerHTML = '<div class="screen">' + headerHTML() + '<div class="body">' + loadingBlock() + '</div>' + actbarHTML(false) + '</div>';
   }
 
   function renderTrip() {
-    var tabs = [['ideas', 'Ideas'], ['days', 'Days'], ['now', 'Now'], ['map', 'Map']].map(function (x) {
-      return '<button class="' + (S.tab === x[0] ? 'on' : '') + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>';
+    var TABS = [['ideas', 'Ideas'], ['days', 'Days'], ['now', 'Now'], ['map', 'Map'], ['trip', 'Trip']];
+    var at = S.tab === 'archive' ? 4 : Math.max(0, TABS.findIndex(function (x) { return x[0] === S.tab; }));
+    if (S.lastTabAt == null) S.lastTabAt = at;
+    var moved = at !== S.lastTabAt;
+    var tabs = '<span class="ind" aria-hidden="true"></span>' + TABS.map(function (x) {
+      return '<button role="tab" aria-selected="' + (S.tab === x[0]) + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>';
     }).join('');
     var body = S.tab === 'days' ? daysHTML()
       : S.tab === 'now' ? nowHTML()
       : S.tab === 'map' ? mapHTML()
       : S.tab === 'archive' ? archiveHTML()
+      : S.tab === 'trip' ? tripSheet()
       : ideasHTML();
-    app.innerHTML = '<div class="screen">' + headerHTML(true)
+    app.innerHTML = '<div class="screen">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
-      + '<nav class="tabs">' + tabs + '</nav>'
-      + '<div class="body">' + body + '</div>'
+      + '<div class="hub"><div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div></div>'
+      + '<div class="body' + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '">' + body + '</div>'
+      + actbarHTML(true)
       + (S.sheet ? sheetHTML() : '')
       + '</div>';
+    // An empty pool is a quiet screen: he dozes until there's something to look at
+    S.lastTabAt = at;
+    setBase(S.tab === 'ideas' && !S.data.ideas.some(function (d) { return d.status === 'suggested'; }) ? 'sleepy' : 'idle');
     paintLock();
   }
 
@@ -646,7 +715,7 @@
     var head = '<h2 class="h-pixel lg">' + esc(S.data.trip.name) + '</h2>';
     if (!pool.length) {
       return head + stateBlock('Nothing in the pool', 'Anyone can suggest a place. Paste a link and it lands here.',
-        '<button class="btn primary" data-act="add-open"><span class="glyph">A</span>Suggest an idea</button>');
+        '<button class="btn" data-act="add-open">' + icon('plus', 16) + 'Suggest an idea</button>');
     }
     return head + stopNames().map(function (s) {
       var items = pool.filter(function (d) { return d.stop === s; });
@@ -657,7 +726,7 @@
 
   function archiveHTML() {
     var list = S.data.ideas.filter(function (d) { return d.status === 'removed'; });
-    var back = '<div class="row"><button class="btn" data-act="tab" data-tab="ideas" data-sfx="back">' + icon('back') + 'Pool</button></div>';
+    var back = '<div class="row"><button class="btn" data-act="trip-open" data-sfx="back">' + icon('back') + 'Back to Trip</button></div>';
     if (!list.length) return back + stateBlock('Nothing archived', 'Removed ideas land here and stay until the trip ends.');
     return back + '<h2 class="h-pixel">Archive</h2>' + list.map(function (d) {
       return '<div class="card static"><span class="sc">' + thumb(d) + '</span>'
@@ -672,7 +741,7 @@
     var count = planned;
     var label = n === 0 ? 'Unscheduled' + (count ? ', ' + count + ' waiting' : '')
       : dayLabel(n) + ', ' + stopFor(n) + (count ? ', ' + count + ' planned' : '');
-    return '<button class="chip' + (S.day === n ? ' on' : '') + (n === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + n + '" aria-label="' + esc(label) + '">'
+    return '<button class="chip' + (S.day === n ? ' on' : '') + (n && n === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + n + '" aria-label="' + esc(label) + '">'
       + '<span>' + (n || 'Open') + '</span><small>' + esc(n ? stopFor(n) : 'no day') + '</small>'
       + (count ? '<b class="n" aria-hidden="true">' + count + '</b>' : '') + '</button>';
   }
@@ -724,7 +793,7 @@
     if (!items) {
       items = stateBlock(n === 0 ? 'Nothing waiting' : 'Nothing planned yet',
         n === 0 ? 'Ideas with no day land here.' : 'Open an idea and give it a time to put it on this day.',
-        '<button class="btn primary" data-act="tab" data-tab="ideas"><span class="glyph">A</span>Go to the pool</button>');
+        '<button class="btn" data-act="tab" data-tab="ideas">Go to the pool</button>');
     }
     return chips + head + pre + items + (n > 0 ? nearbyHTML(stopFor(n)) : '');
   }
@@ -746,7 +815,7 @@
 
     if (!items.length) {
       return head + stateBlock('Nothing with a time', 'Give an idea a time and it turns up here on the day.',
-        '<button class="btn primary" data-act="tab" data-tab="days"><span class="glyph">A</span>Open the day</button>');
+        '<button class="btn" data-act="tab" data-tab="days">Open the day</button>');
     }
 
     // Where he stands: the thing happening now, else the next one up, else the start.
@@ -814,7 +883,7 @@
         setTimeout(function () { if (!mapsReady) mapFailed(); }, 8000);
         document.head.appendChild(sc);
       }
-      box.innerHTML = loadingBlock('Loading the map…');
+      box.innerHTML = loadingBlock(3);
       return;
     }
     if (!(window.google && google.maps)) { box.innerHTML = '<p class="empty">The map could not load. Check the key in config.js.</p>'; return; }
@@ -840,6 +909,7 @@
       : s.kind === 'edit' ? editSheet(ideaById(s.id))
       : s.kind === 'add' ? addSheet(s.pre, s.day)
       : s.kind === 'plan' ? planSheet()
+      : s.kind === 'settings' ? settingsSheet()
       : tripSheet();
     var opening = sheetKey() !== lastSheetKey;
     return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet' + (opening ? ' opening' : '') + '" role="dialog" aria-modal="true">'
@@ -863,7 +933,7 @@
       + '<p class="mrow">' + avatar(d.created_by) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
       + (d.status === 'removed' && d.archive_reason ? '<p class="meta">' + esc(d.archive_reason) + '</p>' : '')
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
-      + (d.link ? '<a class="src" href="' + esc(d.link) + '" target="_blank" rel="noopener">Open ' + esc(srcName(d.link)) + ' ↗</a>' : '');
+      + (d.link ? '<div class="row"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a></div>' : '');
 
     if (d.status !== 'removed' && (mine || manage)) {
       h += '<div class="upl">'
@@ -993,6 +1063,34 @@
     return h;
   }
 
+  // ---------- Settings: grouped, in the kit's order. Everything applies at once; there is no Save. ----------
+  function toggleRow(act, label, on) {
+    return '<div class="setrow"><button class="toggle" type="button" role="switch" aria-checked="' + on + '" data-act="' + act + '" data-sfx="none">'
+      + '<span class="track"><span class="knob"></span></span>' + label + '</button></div>';
+  }
+  function settingsSheet() {
+    var th = themePref();
+    var seg = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(function (x) {
+      return '<button type="button" data-act="set-theme" data-theme="' + x[0] + '" aria-pressed="' + (th === x[0]) + '">' + x[1] + '</button>';
+    }).join('');
+    return '<h2 class="h-pixel lg">Settings</h2>'
+      + '<span class="label">Sound</span>'
+      + toggleRow('set-sound', 'Sound', prefs.sound)
+      + '<div class="setrow"><span>Volume</span><div class="detent"><input type="range" min="0" max="10" step="1" value="' + prefs.vol + '" id="setVol" aria-label="Volume"></div></div>'
+      + toggleRow('set-dog', 'Dog sounds', prefs.dog)
+      + '<hr class="hair"><span class="label">Appearance</span>'
+      + '<div class="seg" role="group" aria-label="Theme">' + seg + '</div>'
+      + (S.tripId ? '<hr class="hair"><span class="label">Notifications</span>'
+          + '<div class="row"><button class="btn" type="button" id="pushBtn" data-act="push">Turn on notifications</button></div>'
+          + '<p class="meta" id="pushHelp"></p>' : '')
+      + '<hr class="hair"><span class="label">Account</span>'
+      + '<p class="meta">Signed in as ' + esc((S.user && S.user.email) || displayName()) + '</p>'
+      + '<div class="row"><button class="btn" type="button" data-act="signout" data-sfx="back">Sign out</button></div>'
+      + '<hr class="hair">'
+      + '<button class="tile" type="button" data-act="about"><span class="ic">' + icon('info') + '</span>'
+      + '<span class="tt"><b>About Walkies</b><span>Version and credits</span></span></button>';
+  }
+
   function tripSheet() {
     var m = myMember(), owner = isOwner(), manage = canManage(), admin = isSecretAdmin();
     var active = S.data.members.filter(isActive).length;
@@ -1010,7 +1108,7 @@
       if (!S.data.requests.length) h += '<p class="meta">Nobody waiting.</p>';
       S.data.requests.forEach(function (r) {
         h += '<div class="row"><span class="inf"><span class="ttl">' + esc(r.display_name) + '</span></span>'
-          + '<button class="btn primary icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1" aria-label="Let ' + esc(r.display_name) + ' in" title="Approve">' + icon('check') + '</button>'
+          + '<button class="btn icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1" aria-label="Let ' + esc(r.display_name) + ' in" title="Approve">' + icon('check') + '</button>'
           + '<button class="btn icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="0" aria-label="Turn ' + esc(r.display_name) + ' away" title="Decline">' + icon('close') + '</button></div>';
       });
     }
@@ -1027,13 +1125,12 @@
 
     if (owner) {
       var pl = plan();
-      h += '<div class="row"><button class="btn primary" data-act="plan-open"><span class="glyph">A</span>Dates and stops</button>'
+      h += '<div class="row"><button class="btn" data-act="plan-open">' + icon('pencil', 16) + 'Edit dates and stops</button>'
         + '<span class="meta">' + pl.ndays + ' days from ' + esc(dayLabel(1).split(' · ')[1]) + '</span></div>';
     }
     var archived = S.data.ideas.filter(function (x) { return x.status === 'removed'; }).length;
-    h += '<div class="row"><button class="btn" data-act="tab" data-tab="archive">Archive · ' + archived + '</button>'
-      + '<button class="btn" data-act="about">About Walkies</button>'
-      + (owner ? '<button class="btn danger" data-act="delete-trip">Delete trip</button>'
+    h += '<div class="row"><button class="btn" data-act="tab" data-tab="archive">Open archive (' + archived + ')</button>'
+      + (owner ? '<button class="btn" data-act="delete-trip">Delete trip</button>'
                : (m && isActive(m) ? '<button class="btn" data-act="leave">Leave trip</button>' : ''))
       + '</div>';
 
@@ -1053,13 +1150,19 @@
   };
   H.signout = async function () { await sb.auth.signOut(); };
   H.about = function () {
-    paintLock(); pushBtnLabel(); themeBtnLabel();
+    paintLock();
     document.getElementById('about').showModal();
   };
-  function themeBtnLabel() {
-    var b = document.getElementById('themeBtn');
-    if (b) b.textContent = isDark() ? 'Light mode' : 'Dark mode';
-  }
+  H['settings-open'] = function () { S.sheet = { kind: 'settings' }; render(); pushBtnLabel(); };
+  H['set-sound'] = function () { prefs.sound = !prefs.sound; savePrefs(); if (prefs.sound) SFX.on(); render(); };
+  H['set-dog'] = function () { prefs.dog = !prefs.dog; savePrefs(); if (prefs.dog) SFX.on(); else SFX.off(); render(); };
+  H['set-theme'] = function (el) {
+    var th = el.dataset.theme;
+    try { localStorage.setItem('walkies_theme', th); } catch (e) {}
+    if (th === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.dataset.theme = th;
+    render(); paintLock();
+  };
 
   H['new-trip'] = async function () {
     var name = val('newTripName');
@@ -1073,17 +1176,9 @@
   H.tab = function (el) {
     S.tab = el.dataset.tab;
     S.sheet = null;
-    if (el.dataset.tab === 'map') SFX.sniff();
+    if (el.dataset.tab === 'map') bark('sniff');
     render();
     window.scrollTo(0, 0);   // a different view, so start at its top
-  };
-  H.theme = function () {
-    var next = isDark() ? 'light' : 'dark';
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem('walkies_theme', next); } catch (e) {}
-    themeBtnLabel();
-    render();
-    paintLock();
   };
   H.day = function (el) { S.day = Number(el.dataset.id); render(); };
   H['open-idea'] = function (el) { S.sheet = { kind: 'idea', id: el.dataset.id }; render(); };
@@ -1092,7 +1187,7 @@
   H['close-bg'] = function (el, ev) { if (ev.target === el) { S.sheet = null; SFX.back(); render(); } };
   H['add-open'] = function () { S.sheet = { kind: 'add', pre: false, day: S.day }; render(); };
   H['preset-open'] = function () { S.sheet = { kind: 'add', pre: true, day: S.day }; render(); };
-  H['trip-open'] = function () { S.sheet = { kind: 'trip' }; render(); };
+  H['trip-open'] = function () { S.tab = 'trip'; S.sheet = null; render(); };
   H['sug-pick'] = function (el) {
     var box = el.closest('.suggest');
     var input = box.previousElementSibling.querySelector('[data-suggest]');
@@ -1160,9 +1255,11 @@
     var stray = {};
     S.data.ideas.forEach(function (i) { if (i.status !== 'removed' && kept.indexOf(i.stop) < 0) stray[i.stop] = (stray[i.stop] || 0) + 1; });
     var lost = Object.keys(stray);
-    if (lost.length && !confirm('These stops have ideas and are no longer on the trip: '
-        + lost.map(function (k) { return k + ' (' + stray[k] + ')'; }).join(', ')
-        + '. Those ideas stay, under their old stop, until you edit them. Save anyway?')) return;
+    if (lost.length && !(await confirmAct({
+        title: 'Take ' + lost.join(', ') + ' off the trip?',
+        body: lost.map(function (k) { return k + ' has ' + stray[k] + (stray[k] === 1 ? ' idea' : ' ideas'); }).join('. ')
+          + '. They stay under the old stop until someone edits them.',
+        keep: 'Keep the stops', act: 'Save without them' }))) return;
 
     // New or renamed stops get a map pin. A stop we cannot place still saves.
     setErr('pErr', '');
@@ -1273,7 +1370,12 @@
     var r = await sb.rpc('remove_idea', { p_idea: el.dataset.id, p_reason: val('rIn'), p_cancel_confirmed: !!(chk && chk.checked) });
     if (r.error) { setErr('sErr', r.error.message); react('sad', 900); SFX.error(); return; }
     S.sheet = null;
-    toast('Moved to the archive. Restore it any time.', 'new');
+    var id = el.dataset.id, title = (ideaById(id) || {}).title || 'it';
+    toast('Removed ' + title + '. It’s in the archive.', null, { undo: async function () {
+      var u = await sb.rpc('restore_idea', { p_idea: id });
+      toast(u.error ? u.error.message : 'Put ' + title + ' back.', u.error ? 'error' : 'success');
+      await refresh();
+    } });
     await refresh();
   };
 
@@ -1333,14 +1435,16 @@
   };
 
   H.leave = async function () {
-    if (!confirm('Leave the trip? Your ideas stay, marked as former member.')) return;
+    if (!(await confirmAct({ title: 'Leave ' + S.data.trip.name + '?', body: 'Your ideas stay. Getting back in needs the owner to let you in again.',
+      keep: 'Stay', act: 'Leave trip' }))) return;
     check(await sb.rpc('leave_trip', { p_trip: S.tripId }));
     backToTrips();
     S.notice = 'You left the trip.';
   };
 
   H['delete-trip'] = async function () {
-    if (!confirm('Delete this trip for everyone? Nobody will see it any more.')) return;
+    if (!(await confirmAct({ title: 'Delete ' + S.data.trip.name + '?', body: 'Everyone loses it: the ideas, the plan, the photos and the comments.',
+      keep: 'Keep it', act: 'Delete trip' }))) return;
     check(await sb.rpc('delete_trip', { p_trip: S.tripId }));
     backToTrips();
     S.notice = 'Trip deleted.';
@@ -1364,7 +1468,7 @@
       toast(S.adminShown ? 'Admin tools on.' : 'Admin tools off.', 'new');
       return render();
     }
-    react('alert', 300);
+    hop(); react('alert', 450); if (prefs.dog) DOG.woof();
   };
 
   // ---------- Photos ----------
@@ -1462,9 +1566,10 @@
   async function pushBtnLabel() {
     var btn = document.getElementById('pushBtn');
     if (!btn) return;
+    var help = document.getElementById('pushHelp');
     if (!pushSupported() || !S.tripId) {
-      btn.textContent = 'Notifications need the home screen app';
-      btn.disabled = true;
+      btn.hidden = true;
+      if (help) help.textContent = 'Add Walkies to your home screen, then turn them on here.';
       return;
     }
     var reg = await navigator.serviceWorker.ready;
@@ -1475,7 +1580,7 @@
   H.push = async function () {
     if (!pushSupported() || !S.tripId) return;
     var perm = await Notification.requestPermission();
-    if (perm !== 'granted') return toast('Notifications stayed off. You can turn them on in Settings.', 'new');
+    if (perm !== 'granted') return toast('Notifications stayed off. Allow them for Walkies in your phone’s settings, then try again.', 'new');
     var reg = await navigator.serviceWorker.ready;
     var sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(CFG.VAPID_PUBLIC) });
@@ -1556,108 +1661,87 @@
       .catch(function (e) { toast((e && e.message) || 'Something went wrong. Try again.', 'error'); })
       .then(function () { if (lock) { el.disabled = false; delete el.dataset.busy; } });
   });
-  document.getElementById('pushBtn').addEventListener('click', function () { H.push(); });
-  document.getElementById('themeBtn').addEventListener('click', function () { H.theme(); });
+  // Volume: 11 detents, each a click a little higher
+  app.addEventListener('input', function (ev) {
+    if (ev.target.id !== 'setVol') return;
+    prefs.vol = Number(ev.target.value); savePrefs(); SFX.detent(prefs.vol);
+  });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { render(); paintLock(); });
 
-  // ---------- Boot screen ----------
+  // ---------- Boot screen: once per launch, never on focus or resume. Skippable after 300 ms, ends on the logo. ----------
   function boot() {
     var el = document.getElementById('boot');
     if (!el) return;
-    var timers = [], t0 = Date.now(), done = false;
+    var timers = [], t0 = Date.now(), done = false, $ = function (id) { return document.getElementById(id); };
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    document.getElementById('bootDog').innerHTML = dog('sleepy');
-    document.getElementById('bootWord').innerHTML = word('#16181D', 12, 4);
+    $('bootDog').innerHTML = dog('sleepy'); $('bootWord').innerHTML = word('#16181D', 12, 4);
     function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
     function finish() { if (done) return; done = true; timers.forEach(clearTimeout); el.remove(); }
     function skip() { if (Date.now() - t0 > 300) finish(); }
     el.addEventListener('click', skip);
     document.addEventListener('keydown', skip, { once: true });
-    if (audio() && ac.state === 'running') SFX.startup();
-    if (reduce) {
-      el.classList.add('done', 'named');
-      document.getElementById('bootDog').innerHTML = dog('idle');
-      at(800, finish); return;
-    }
+    if (ctx && ctx.state === 'running') SFX.startup();            // browsers allow sound only after an input
+    if (reduce) { el.classList.add('done', 'named'); $('bootDog').innerHTML = dog('idle'); at(800, finish); return; }
     el.classList.add('booting');
-    at(510, function () {
-      document.getElementById('bootDog').innerHTML = dog('alert');
-      document.getElementById('bootEmote').classList.add('show');
-      el.classList.add('wiping');
+    // The LCD ghosts each jump for three frames (50 ms): a faint copy where the word just was
+    [[0, -24], [110, -18], [220, -12], [330, -6]].forEach(function (j) {
+      at(j[0], function () { $('bootGhost').innerHTML = word('#16181D', 12, 4 + j[1]); });
+      at(j[0] + 50, function () { $('bootGhost').innerHTML = ''; });
     });
-    at(800, function () {
-      document.getElementById('bootDog').innerHTML = dog('idle');
-      document.getElementById('bootEmote').classList.remove('show');
-    });
+    at(510, function () { $('bootDog').innerHTML = dog('alert'); $('bootEmote').classList.add('show'); el.classList.add('wiping'); });
+    at(800, function () { $('bootDog').innerHTML = dog('idle'); $('bootEmote').classList.remove('show'); });
     at(900, function () { el.classList.add('named'); });
     at(1100, finish);
   }
 
-  // ---------- Bubbles: he would try to eat them as they floated by ----------
+  // ---------- Easter egg: bubbles. He would smile and try to eat them as they floated by. ----------
   var BUB = false, SVGNS = 'http://www.w3.org/2000/svg';
   function bubbleSvg(size) {
-    var b = document.createElementNS(SVGNS, 'svg');
-    b.setAttribute('class', 'bub'); b.setAttribute('width', size); b.setAttribute('height', size); b.setAttribute('viewBox', '0 0 8 8');
-    b.innerHTML = '<path fill="currentColor" d="M2 0h4v1H2zM1 1h1v1H1zM6 1h1v1H6zM0 2h1v4H0zM7 2h1v4H7zM1 6h1v1H1zM6 6h1v1H6zM2 7h4v1H2z"/>'
-      + '<path fill="#ECEEF1" opacity=".7" d="M2 1h4v1H2zM1 2h6v4H1zM2 6h4v1H2z"/>'
-      + '<path fill="#7AA7F2" d="M2 2h2v1H2zM2 3h1v1H2z"/>';
+    var b = document.createElementNS(SVGNS, 'svg'); b.setAttribute('class', 'bub'); b.setAttribute('width', size); b.setAttribute('height', size); b.setAttribute('viewBox', '0 0 8 8');
+    b.innerHTML = '<path fill="currentColor" d="M2 0h4v1H2zM1 1h1v1H1zM6 1h1v1H6zM0 2h1v4H0zM7 2h1v4H7zM1 6h1v1H1zM6 6h1v1H6zM2 7h4v1H2z"/><path fill="#ECEEF1" opacity=".7" d="M2 1h4v1H2zM1 2h6v4H1zM2 6h4v1H2z"/><path fill="#7AA7F2" d="M2 2h2v1H2zM2 3h1v1H2z"/>';
     return b;
   }
   function sparks(x, y) {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]].forEach(function (d) {
-      var s = document.createElement('span'), dist = Math.random() < .5 ? 32 : 64;
-      s.className = 'spark'; s.style.left = x + 'px'; s.style.top = y + 'px';
-      s.style.setProperty('--dx', d[0] * dist + 'px'); s.style.setProperty('--dy', d[1] * dist + 'px');
-      document.body.appendChild(s);
-      setTimeout(function () { s.remove(); }, 480);
+      var sp = document.createElement('span'), dist = Math.random() < .5 ? 32 : 64;
+      sp.className = 'spark'; sp.style.left = x + 'px'; sp.style.top = y + 'px';
+      sp.style.setProperty('--dx', d[0] * dist + 'px'); sp.style.setProperty('--dy', d[1] * dist + 'px');
+      document.body.appendChild(sp); setTimeout(function () { sp.remove(); }, 480);
     });
   }
   function bubbles() {
-    if (BUB) return;
-    BUB = true;
+    if (BUB) return; BUB = true;
     var dk = isDark(), layer = document.createElement('div'), stage = document.createElement('div'), ds = document.createElementNS(SVGNS, 'svg');
-    layer.className = 'bubbles'; layer.setAttribute('aria-hidden', 'true');
-    stage.className = 'bubdog'; stage.setAttribute('aria-hidden', 'true');
-    ds.setAttribute('class', 'px'); ds.setAttribute('viewBox', dk ? '-1 -1 12 12' : '0 0 10 10');
-    ds.setAttribute('width', dk ? 96 : 80); ds.setAttribute('height', dk ? 96 : 80);
+    layer.className = 'bubbles'; layer.setAttribute('aria-hidden', 'true'); stage.className = 'bubdog'; stage.setAttribute('aria-hidden', 'true');
+    ds.setAttribute('class', 'px'); ds.setAttribute('viewBox', dk ? '-1 -1 12 12' : '0 0 10 10'); ds.setAttribute('width', dk ? 96 : 80); ds.setAttribute('height', dk ? 96 : 80);
     function face(p) { ds.innerHTML = dog(p, 0, 0, dk); }
-    face('grin'); stage.appendChild(ds);
-    document.body.appendChild(layer); document.body.appendChild(stage);
-    void stage.offsetWidth; stage.classList.add('in');
-    SFX.yip(); toast('Bubbles. He loved these.');
-    var list = [], t0 = Date.now(), spawnAt = 0, caught = 0, left = false;
+    face('grin'); stage.appendChild(ds); document.body.appendChild(layer); document.body.appendChild(stage);
+    void stage.offsetWidth; stage.classList.add('in'); bark('yip'); toast('Bubbles. He loved these.');
+    var list = [], t0 = Date.now(), spawnAt = 0, caught = 0;
     var tick = setInterval(function () {
-      var now = Date.now(), el = now - t0, W = innerWidth, H = innerHeight;
-      var r = ds.getBoundingClientRect(), m = { x: r.left + r.width / 2, y: r.top + r.height * 0.75, r: r.width / 2 };
-      if (el < 6500 && now >= spawnAt) {
+      var now = Date.now(), el = now - t0, W = innerWidth, H = innerHeight, r = ds.getBoundingClientRect(), m = { x: r.left + r.width / 2, y: r.top + r.height * 0.75, r: r.width / 2 };
+      if (el < 7000 && now >= spawnAt) {           // bubbles rise for 7 s
         spawnAt = now + 260 + Math.random() * 340;
         var size = [16, 24, 32][Math.floor(Math.random() * 3)], px = size / 8;
         var b = { el: bubbleSvg(size), size: size, px: px, x: Math.round((W * 0.3 + Math.random() * W * 0.66) / px) * px, y: Math.round(H / px) * px + size, drift: Math.random() < .5 ? -1 : 1, n: 0 };
-        b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px';
-        layer.appendChild(b.el); list.push(b);
+        b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; layer.appendChild(b.el); list.push(b);
       }
       list.forEach(function (b) {
-        b.n++; b.y -= b.px;
-        if (b.n % 6 === 0) b.x += b.drift * b.px;
-        if (b.n % 36 === 0) b.drift = -b.drift;
-        b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px';
-        var cx = b.x + b.size / 2, cy = b.y + b.size / 2;
-        if (!left && !b.dead && Math.abs(cx - m.x) < m.r + b.size / 2 && Math.abs(cy - m.y) < m.r * 0.6) {
-          b.dead = true; caught++; SFX.chomp(); SFX.pop();
-          stage.classList.remove('chomp'); void stage.offsetWidth; stage.classList.add('chomp');
-          face('happy'); setTimeout(function () { face('grin'); }, 160);
-          sparks(cx, cy);
+        b.n++; b.y -= b.px; if (b.n % 6 === 0) b.x += b.drift * b.px; if (b.n % 36 === 0) b.drift = -b.drift;
+        b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; var cx = b.x + b.size / 2, cy = b.y + b.size / 2;
+        if (!b.dead && Math.abs(cx - m.x) < m.r + b.size / 2 && Math.abs(cy - m.y) < m.r * 0.6) {
+          b.dead = true; caught++; tone(300, 0.06, { v: 0.12, to: 140 }); tone(1400, 0.035, { v: 0.07, to: 2100 });
+          stage.classList.remove('chomp'); void stage.offsetWidth; stage.classList.add('chomp'); face('happy'); setTimeout(function () { face('grin'); }, 160); sparks(cx, cy);
         }
         if (b.dead || b.y < -b.size) { b.el.remove(); b.gone = true; }
       });
       list = list.filter(function (b) { return !b.gone; });
-      if (el > 9000 && !left) {
-        left = true; stage.classList.remove('in'); stage.classList.add('out'); SFX.woof();
+      if (el > 7000 && !list.length) {             // he leaves once the last bubble is gone
+        clearInterval(tick); stage.classList.remove('in'); stage.classList.add('out'); bark('woof');
         toast(caught ? 'He got ' + caught + (caught === 1 ? ' bubble.' : ' bubbles.') + ' Good boy.' : 'He missed every one. He never minded.');
-        setTimeout(function () { stage.remove(); }, 300);
+        setTimeout(function () { layer.remove(); stage.remove(); BUB = false; }, 300);
       }
-      if (left && !list.length) { clearInterval(tick); layer.remove(); BUB = false; }
     }, 50);
   }
   var eggTyped = '';
@@ -1667,6 +1751,25 @@
     if (e.key.length !== 1) return;
     eggTyped = (eggTyped + e.key.toLowerCase()).slice(-7);
     if (eggTyped === 'bubbles') { eggTyped = ''; bubbles(); }
+  });
+
+  // ---------- Glyph keys, fixed in every ROWMI app: A Enter, B Esc, X Delete, Y Ctrl+comma, L/R Ctrl+Tab ----------
+  document.addEventListener('keydown', function (e) {
+    if (document.querySelector('dialog[open]')) return;
+    var tg = e.target, typing = tg && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName);
+    // B: close the sheet that's open
+    if (e.key === 'Escape' && S.sheet) { e.preventDefault(); SFX.back(); S.sheet = null; render(); return; }
+    // L / R: the tabs
+    if (e.key === 'Tab' && e.ctrlKey && S.data && !S.sheet) {
+      e.preventDefault();
+      var T = ['ideas', 'days', 'now', 'map', 'trip'], i = Math.max(0, T.indexOf(S.tab === 'archive' ? 'trip' : S.tab));
+      var b = document.querySelector('[data-act="tab"][data-tab="' + T[(i + (e.shiftKey ? T.length - 1 : 1)) % T.length] + '"]');
+      if (b) b.click();
+      return;
+    }
+    if (S.sheet) return;   // a sheet's own buttons take Enter; the bar waits underneath
+    var key = (e.key === 'Delete' && !typing) ? 'x' : (e.key === ',' && (e.ctrlKey || e.metaKey)) ? 'y' : null;
+    if (key) { var k = document.querySelector('.actbar [data-key="' + key + '"]:not([disabled])'); if (k) { e.preventDefault(); k.click(); } }
   });
 
   // ---------- Start ----------
