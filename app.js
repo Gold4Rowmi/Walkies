@@ -1091,14 +1091,32 @@
       + '<span class="tt"><b>About Walkies</b><span>Version and credits</span></span></button>';
   }
 
+  // Who's in, and what they can do. The owner hands out admin and can pass the trip on.
+  function peopleHTML(owner) {
+    var ownerId = S.data.trip.owner_id;
+    var rows = S.data.members.filter(isActive).map(function (x) {
+      var me = x.user_id === S.user.id, isOwn = x.user_id === ownerId;
+      var role = isOwn ? '<span class="tag ok">Owner</span>' : x.is_admin ? '<span class="tag">Admin</span>' : '';
+      var acts = owner && !isOwn
+        ? '<div class="row">'
+          + '<button class="btn" data-act="set-admin" data-id="' + esc(x.user_id) + '" data-on="' + (x.is_admin ? '0' : '1') + '">'
+          + (x.is_admin ? 'Remove admin' : 'Make admin') + '</button>'
+          + '<button class="btn" data-act="make-owner" data-id="' + esc(x.user_id) + '">Make owner</button></div>'
+        : '';
+      return '<div class="person"><div class="mrow">' + avatar(x.user_id)
+        + '<span class="ttl clip">' + esc(x.display_name) + (me ? ' (you)' : '') + '</span>' + role + '</div>' + acts + '</div>';
+    }).join('');
+    var gone = S.data.members.filter(function (x) { return !isActive(x); }).map(function (x) { return esc(x.display_name); });
+    return '<div class="people">' + rows + '</div>'
+      + (owner ? '<p class="meta">Admins can approve joins, edit any idea and remove people. Only the owner can delete the trip.</p>' : '')
+      + (gone.length ? '<p class="meta">Former: ' + gone.join(', ') + '</p>' : '');
+  }
+
   function tripSheet() {
     var m = myMember(), owner = isOwner(), manage = canManage(), admin = isSecretAdmin();
     var active = S.data.members.filter(isActive).length;
     var h = '<h2 class="h-pixel lg">' + esc(S.data.trip.name) + '</h2>'
-      + '<p class="meta">' + active + ' people · one invite link · the owner approves joins</p>'
-      + '<div class="note">' + S.data.members.map(function (x) {
-          return esc(x.display_name) + (x.user_id === S.data.trip.owner_id ? ' (owner)' : '') + (isActive(x) ? '' : ' (former)');
-        }).join(' · ') + '</div>';
+      + '<span class="label">People (' + active + ')</span>' + peopleHTML(owner);
 
     if (manage) {
       var link = location.origin + location.pathname + '?join=' + S.data.trip.invite_token;
@@ -1440,6 +1458,22 @@
     check(await sb.rpc('leave_trip', { p_trip: S.tripId }));
     backToTrips();
     S.notice = 'You left the trip.';
+  };
+
+  H['set-admin'] = async function (el) {
+    var on = el.dataset.on === '1', who = nameOf(el.dataset.id);
+    check(await sb.rpc('set_admin', { p_trip: S.tripId, p_user: el.dataset.id, p_on: on }));
+    toast(on ? who + ' is now an admin.' : who + ' is no longer an admin.', 'success');
+    await refresh();
+  };
+  H['make-owner'] = async function (el) {
+    var who = nameOf(el.dataset.id);
+    if (!(await confirmAct({ title: 'Make ' + who + ' the owner?',
+      body: who + ' gets the dates, the stops and deleting the trip. You stay on as an admin, and only ' + who + ' can hand it back.',
+      keep: 'Keep it', act: 'Make ' + who + ' owner' }))) return;
+    check(await sb.rpc('transfer_owner', { p_trip: S.tripId, p_user: el.dataset.id }));
+    toast(who + ' owns the trip now.', 'success');
+    await refresh();
   };
 
   H['delete-trip'] = async function () {

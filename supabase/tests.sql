@@ -213,6 +213,28 @@ begin
   exception when others then null;
   end;
 
+  -- 26. Roles: only the owner makes admins or hands the trip over; the old owner stays an admin.
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  begin
+    perform set_admin(trip, mate_id, true);
+    failed := failed || E'\n26 a member made themselves admin';
+  exception when others then null;
+  end;
+  begin
+    perform transfer_owner(trip, mate_id);
+    failed := failed || E'\n26 a member took the trip';
+  exception when others then null;
+  end;
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  perform set_admin(trip, mate_id, true);
+  if not (select is_admin from trip_members where trip_id = trip and user_id = mate_id) then failed := failed || E'\n26 owner could not make an admin'; end if;
+  perform set_admin(trip, mate_id, false);
+  perform transfer_owner(trip, mate_id);
+  if (select owner_id from trips where id = trip) <> mate_id then failed := failed || E'\n26 handover did not move the trip'; end if;
+  if not (select is_admin from trip_members where trip_id = trip and user_id = owner_id) then failed := failed || E'\n26 old owner lost admin'; end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  perform transfer_owner(trip, owner_id);   -- hand it back so test 24 runs as written
+
   -- 24. Only the owner deletes the trip.
   perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
   begin
