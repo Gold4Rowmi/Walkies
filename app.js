@@ -861,7 +861,7 @@
   // came from keeps the four blue corner brackets, so you can see which one it is.
   function picked(d) { return S.sheet && S.sheet.id === d.id ? ' aria-selected="true"' : ''; }
   function sideEmpty() {
-    var near = S.tab === 'days' && S.day > 0 ? nearbyHTML(stopFor(S.day)) : '';
+    var near = S.tab === 'days' && S.day > 0 ? nearbyHTML(S.day) : '';
     if (WIDE.matches && near) return '<aside class="side-empty side-near"><span class="label">Nearby in ' + esc(stopFor(S.day)) + '</span>' + near + '</aside>';
     return '<aside class="side-empty" aria-hidden="true"><div class="state">' + dogSVG('sleepy', 60)
       + '<b>Nothing open</b><span>Pick an idea or a plan and it opens here.</span></div></aside>';
@@ -930,10 +930,41 @@
       + '</span></div>';
   }
 
-  function nearbyHTML(stop) {
-    var hiddenTitles = S.data.hidden.filter(function (h) { return h.stop === stop; }).map(function (h) { return h.title; });
-    var list = S.data.nearby.filter(function (n) { return n.stop === stop && hiddenTitles.indexOf(n.title) < 0; });
-    if (!list.length) return '';
+  // Nearby: the trip's own suggestions for the stop plus the well-known places
+  // list, minus anything already on the trip or hidden. Each day of a stop
+  // shows a different handful, and "Show other places" turns the page.
+  var NEAR_N = 4, nearShift = {};
+  function guessKind(t) {
+    var f = fold(t);
+    if (/market|yokocho|alley|food|noodle|ramen|banh|pho|cafe|dinner|lunch|breakfast/.test(f)) return { kind: 'food', scene: 'bowl' };
+    if (/beach|bay|island|cruise/.test(f)) return { kind: 'see', scene: 'beach' };
+    if (/-ji\b|\bji\b|temple|shrine|taisha|jinja|dera|pagoda|pavilion|castle/.test(f)) return { kind: 'see', scene: 'temple' };
+    return { kind: 'see', scene: 'walk' };
+  }
+  function nearbyPool(stop) {
+    var hidden = S.data.hidden.filter(function (h) { return h.stop === stop; }).map(function (h) { return fold(h.title); });
+    var have = S.data.ideas.filter(function (d) { return d.stop === stop; }).map(function (d) { return fold(d.title); });
+    // Already on the trip if it shares a distinctive word: "Tsukiji breakfast" covers Tsukiji Outer Market
+    var COMMON = /^(market|outer|temple|shrine|taisha|beach|park|street|station|tower|ancient|town|old|bridge|garden|gardens|island|night|breakfast|lunch|dinner|ride|walk|cruise|tour|museum|palace|castle|crossing|lake|mount|bay|city|food|japanese|vietnam|japan)$/;
+    var keys = function (t) { return fold(t).split(/[^a-z0-9]+/).filter(function (w) { return w.length >= 5 && !COMMON.test(w); }); };
+    var haveKeys = [].concat.apply([], have.map(keys));
+    var taken = function (t) {
+      var f = fold(t);
+      return hidden.indexOf(f) >= 0 || have.indexOf(f) >= 0 || keys(t).some(function (w) { return haveKeys.indexOf(w) >= 0; });
+    };
+    var seen = {}, pool = [];
+    S.data.nearby.filter(function (n) { return n.stop === stop; })
+      .concat((PLACES[stop] || []).map(function (t) { var g = guessKind(t); return { stop: stop, title: t, kind: g.kind, scene: g.scene }; }))
+      .forEach(function (n) { var f = fold(n.title); if (seen[f] || taken(n.title)) return; seen[f] = 1; pool.push(n); });
+    return pool;
+  }
+  function nearbyHTML(day) {
+    var stop = stopFor(day), pool = nearbyPool(stop);
+    if (!pool.length) return '';
+    var nth = 0; for (var k = 1; k < day; k++) if (stopFor(k) === stop) nth++;   // which day of this stop
+    var start = ((nth + (nearShift[day] || 0)) * NEAR_N) % pool.length, list = [];
+    for (var j = 0; j < Math.min(NEAR_N, pool.length); j++) list.push(pool[(start + j) % pool.length]);
+    var more = pool.length > NEAR_N ? '<button class="btn ghost" data-act="near-more" data-day="' + day + '">Show other places</button>' : '';
     return '<div class="sugg"><p class="meta">Nearby in ' + esc(stop) + ' · suggestions, check before you go</p>'
       + list.map(function (n) {
         return '<div class="nearby"><span class="ttl">' + esc(n.title) + '</span><span class="meta">' + esc(n.kind) + '</span>'
@@ -941,7 +972,7 @@
           + '<button class="btn" data-act="sugg-add" data-title="' + esc(n.title) + '" data-stop="' + esc(n.stop) + '" data-scene="' + esc(n.scene) + '">Suggest this</button>'
           + '<button class="btn" data-act="sugg-hide" data-title="' + esc(n.title) + '" data-stop="' + esc(n.stop) + '">Not for us</button>'
           + '</span></div>';
-      }).join('') + '</div>';
+      }).join('') + more + '</div>';
   }
 
   var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -975,7 +1006,7 @@
         n === 0 ? 'Ideas with no day land here.' : 'Open an idea and give it a time to put it on this day.',
         '<button class="btn" data-act="tab" data-tab="ideas">Go to the pool</button>');
     }
-    return chips + '<div class="dayhead">' + head + pre + '</div>' + items + (n > 0 && !WIDE.matches ? nearbyHTML(stopFor(n)) : '');
+    return chips + '<div class="dayhead">' + head + pre + '</div>' + items + (n > 0 && !WIDE.matches ? nearbyHTML(n) : '');
   }
 
   // ---------- Getting between plans: Google Routes, with your Maps key ----------
@@ -1732,6 +1763,8 @@
     toast('Added to the pool' + (S.day ? ' for ' + dayLabel(S.day) : '') + '.', 'success');
     await refresh();
   };
+
+  H['near-more'] = function (el) { var d = Number(el.dataset.day); nearShift[d] = (nearShift[d] || 0) + 1; render(); };
 
   H['sugg-hide'] = async function (el) {
     check(await sb.from('hidden_suggestions').insert({ trip_id: S.tripId, stop: el.dataset.stop, title: el.dataset.title }));
