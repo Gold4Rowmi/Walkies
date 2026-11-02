@@ -6,27 +6,58 @@
   var JOIN_KEY = 'walkies_join';
 
   // ---------- Trip shape ----------
-  var STOP_ORDER = ['Tokyo', 'Kyoto', 'Kawaguchiko', 'Hoi An', 'Ha Long'];
-  var STOPS = {
-    'Tokyo':       { from: 1,  to: 4,  tz: 'JST', zone: 'Asia/Tokyo',       lat: 35.6762, lng: 139.6503 },
-    'Kyoto':       { from: 5,  to: 7,  tz: 'JST', zone: 'Asia/Tokyo',       lat: 35.0116, lng: 135.7681 },
-    'Kawaguchiko': { from: 8,  to: 9,  tz: 'JST', zone: 'Asia/Tokyo',       lat: 35.5104, lng: 138.7689 },
-    'Hoi An':      { from: 10, to: 14, tz: 'ICT', zone: 'Asia/Ho_Chi_Minh', lat: 15.8801, lng: 108.3380 },
-    'Ha Long':     { from: 15, to: 18, tz: 'ICT', zone: 'Asia/Ho_Chi_Minh', lat: 20.9101, lng: 107.1839 }
+  // The trip's own dates and stops live on the trip row, set by the owner in
+  // the app. A trip that has never been set up falls back to this.
+  var DEFAULT_PLAN = {
+    start: CFG.TRIP_START || '2027-04-12',
+    stops: [
+      { name: 'Tokyo',       days: 4, zone: 'Asia/Tokyo',       lat: 35.6762, lng: 139.6503 },
+      { name: 'Kyoto',       days: 3, zone: 'Asia/Tokyo',       lat: 35.0116, lng: 135.7681 },
+      { name: 'Kawaguchiko', days: 2, zone: 'Asia/Tokyo',       lat: 35.5104, lng: 138.7689 },
+      { name: 'Hoi An',      days: 5, zone: 'Asia/Ho_Chi_Minh', lat: 15.8801, lng: 108.3380 },
+      { name: 'Ha Long',     days: 4, zone: 'Asia/Ho_Chi_Minh', lat: 20.9101, lng: 107.1839 }
+    ]
   };
-  var NDAYS = 18;
-  var TRIP_START = CFG.TRIP_START || '2027-04-12';
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+  // Day numbers run straight through the stops in order, so the first and last
+  // day of each stop fall out of how many days it has.
+  function plan() {
+    var t = S.data && S.data.trip;
+    var raw = (t && t.stops && t.stops.length) ? t.stops : DEFAULT_PLAN.stops;
+    var out = [], day = 1;
+    raw.forEach(function (st) {
+      var n = Math.max(1, Number(st.days) || 1);
+      out.push({ name: st.name, days: n, from: day, to: day + n - 1,
+                 zone: st.zone || 'UTC', lat: st.lat, lng: st.lng });
+      day += n;
+    });
+    return { start: (t && t.start_date) || DEFAULT_PLAN.start, stops: out, ndays: day - 1 };
+  }
+  function stopNames() { return plan().stops.map(function (s) { return s.name; }); }
   function stopFor(n) {
-    for (var i = 0; i < STOP_ORDER.length; i++) {
-      var s = STOP_ORDER[i];
-      if (n >= STOPS[s].from && n <= STOPS[s].to) return s;
-    }
-    return STOP_ORDER[0];
+    var st = plan().stops;
+    for (var i = 0; i < st.length; i++) if (n >= st[i].from && n <= st[i].to) return st[i].name;
+    return st.length ? st[0].name : '';
+  }
+  // An idea keeps the stop name it was filed under. If that stop is renamed or
+  // removed the idea still shows, just without a time zone.
+  function stopByName(name) {
+    var st = plan().stops;
+    for (var i = 0; i < st.length; i++) if (st[i].name === name) return st[i];
+    return { name: name, days: 0, from: 0, to: 0, zone: '' };
+  }
+  // CLDR has no abbreviation for most Asian zones, so this reads "GMT+9".
+  function tzLabel(zone) {
+    if (!zone) return '';
+    try {
+      var part = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'short' })
+        .formatToParts(new Date()).filter(function (x) { return x.type === 'timeZoneName'; })[0];
+      return part ? part.value : '';
+    } catch (e) { return ''; }
   }
   function dayDate(n) {
-    var d = new Date(TRIP_START + 'T00:00:00');
+    var d = new Date(plan().start + 'T00:00:00');
     d.setDate(d.getDate() + n - 1);
     return d;
   }
@@ -34,18 +65,25 @@
     var d = dayDate(n);
     return 'Day ' + n + ' · ' + d.getDate() + ' ' + MONTHS[d.getMonth()];
   }
-  // Where we are in the trip, by the clock at that stop.
+  // Where we are in the trip, by the clock at the first stop.
   function todayDay() {
-    var zone = STOPS[STOP_ORDER[0]].zone;
-    var p = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    var diff = Math.round((new Date(p + 'T00:00:00') - new Date(TRIP_START + 'T00:00:00')) / 86400000) + 1;
-    return diff >= 1 && diff <= NDAYS ? diff : 0;
+    var p = plan();
+    if (!p.stops.length) return 0;
+    try {
+      var here = new Intl.DateTimeFormat('en-CA', { timeZone: p.stops[0].zone || 'UTC',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      var diff = Math.round((new Date(here + 'T00:00:00') - new Date(p.start + 'T00:00:00')) / 86400000) + 1;
+      return diff >= 1 && diff <= p.ndays ? diff : 0;
+    } catch (e) { return 0; }
   }
   function nowMinutes(zone) {
-    var p = new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
-    var h = 0, m = 0;
-    p.forEach(function (x) { if (x.type === 'hour') h = +x.value; if (x.type === 'minute') m = +x.value; });
-    return h * 60 + m;
+    try {
+      var parts = new Intl.DateTimeFormat('en-GB', { timeZone: zone || 'UTC',
+        hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+      var h = 0, m = 0;
+      parts.forEach(function (x) { if (x.type === 'hour') h = +x.value; if (x.type === 'minute') m = +x.value; });
+      return h * 60 + m;
+    } catch (e) { return 0; }
   }
 
   // Share links come from all sorts of subdomains: vt.tiktok.com, vm.tiktok.com,
@@ -298,11 +336,11 @@
   function check(r) { if (r.error) throw r.error; return r.data; }
   function dayOpts(sel) {
     var o = '<option value="0"' + (sel == 0 ? ' selected' : '') + '>Unscheduled</option>';
-    for (var n = 1; n <= NDAYS; n++) o += '<option value="' + n + '"' + (sel == n ? ' selected' : '') + '>' + dayLabel(n) + ' (' + stopFor(n) + ')</option>';
+    for (var n = 1; n <= plan().ndays; n++) o += '<option value="' + n + '"' + (sel == n ? ' selected' : '') + '>' + dayLabel(n) + ' (' + stopFor(n) + ')</option>';
     return o;
   }
   function stopOpts(sel) {
-    return STOP_ORDER.map(function (s) { return '<option' + (s === sel ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
+    return stopNames().map(function (s) { return '<option' + (s === sel ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
   }
   function bars(n) {
     var s = '<span class="bar">';
@@ -515,7 +553,7 @@
       return head + stateBlock('Nothing in the pool', 'Anyone can suggest a place. Paste a link and it lands here.',
         '<button class="btn primary" data-act="add-open"><span class="glyph">A</span>Suggest an idea</button>');
     }
-    return head + STOP_ORDER.map(function (s) {
+    return head + stopNames().map(function (s) {
       var items = pool.filter(function (d) { return d.stop === s; });
       if (!items.length) return '';
       return '<h3 class="h-pixel">' + esc(s) + '</h3>' + items.map(ideaCard).join('');
@@ -549,7 +587,7 @@
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
       + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + avatar(d.created_by) + esc(d.stop) + ' · ' + STOPS[d.stop].tz + '</span>'
+      + '<span class="meta">' + avatar(d.created_by) + esc(d.stop) + ' · ' + esc(tzLabel(stopByName(d.stop).zone)) + '</span>'
       + '<span class="row">' + tags + '</span></span></button>';
   }
 
@@ -579,11 +617,11 @@
 
   function daysHTML() {
     var n = S.day, chips = '<div class="daybar">' + dayChip(0);
-    for (var k = 1; k <= NDAYS; k++) chips += dayChip(k);
+    for (var k = 1; k <= plan().ndays; k++) chips += dayChip(k);
     chips += '</div>';
     var head = n === 0
       ? '<h2 class="h-pixel">Unscheduled</h2>'
-      : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + STOPS[stopFor(n)].tz + ' local time</span></h2>';
+      : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>';
     var pre = n > 0 && isOwner() ? '<button class="btn" data-act="preset-open">Pre-set a slot</button>' : '';
     var planned = plannedOn(n), slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n; });
     var items = planned.map(plannedCard).join('') + slots.map(slotCard).join('');
@@ -599,14 +637,14 @@
   function nowHTML() {
     var today = todayDay();
     var n = today || (S.day > 0 ? S.day : 1);
-    var stop = stopFor(n), zone = STOPS[stop].zone, now = nowMinutes(zone);
+    var stop = stopFor(n), zone = stopByName(stop).zone, now = nowMinutes(zone);
     var running = today === n;
     var started = today > 0;
     var items = plannedOn(n).filter(function (d) { return d.start_time; });
     var clock = String(Math.floor(now / 60)).padStart(2, '0') + ':' + String(now % 60).padStart(2, '0');
     var head = '<h2 class="h-pixel">' + (running ? 'Today' : dayLabel(n))
       + '<br><span class="meta">' + esc(stop) + ' · '
-      + (running ? 'now ' + clock + ' ' + STOPS[stop].tz
+      + (running ? 'now ' + clock + ' ' + tzLabel(zone)
          : started ? 'the trip has moved on' : 'the trip has not started')
       + '</span></h2>';
 
@@ -645,11 +683,13 @@
 
   function mapHTML() {
     if (!CFG.MAPS_KEY) return stateBlock('No map key yet', 'Add MAPS_KEY to config.js to show the trip map.');
-    var legend = STOP_ORDER.map(function (s, i) {
-      var cnt = S.data.ideas.filter(function (d) { return d.stop === s && d.status !== 'removed'; }).length;
+    var legend = plan().stops.map(function (st, i) {
+      var cnt = S.data.ideas.filter(function (d) { return d.stop === st.name && d.status !== 'removed'; }).length;
       return '<div class="card static"><span class="glyph">' + (i + 1) + '</span><span class="inf">'
-        + '<span class="ttl">' + esc(s) + '</span>'
-        + '<span class="meta">Days ' + STOPS[s].from + ' to ' + STOPS[s].to + ' · ' + STOPS[s].tz + ' · ' + cnt + ' item' + (cnt === 1 ? '' : 's') + '</span></span></div>';
+        + '<span class="ttl">' + esc(st.name) + '</span>'
+        + '<span class="meta">Days ' + st.from + ' to ' + st.to + ' · ' + esc(tzLabel(st.zone))
+        + ' · ' + cnt + ' item' + (cnt === 1 ? '' : 's')
+        + (st.lat == null ? ' · not on the map' : '') + '</span></span></div>';
     }).join('');
     return '<h2 class="h-pixel">The route</h2><div id="mapbox"></div>'
       + '<p class="meta">Pins are the stops, in order. Open an idea for its own link.</p>' + legend;
@@ -682,12 +722,14 @@
       return;
     }
     if (!(window.google && google.maps)) { box.innerHTML = '<p class="empty">The map could not load. Check the key in config.js.</p>'; return; }
+    var pinned = plan().stops.filter(function (st) { return st.lat != null && st.lng != null; });
+    if (!pinned.length) { box.innerHTML = '<p class="empty">No stop has a place on the map yet.</p>'; return; }
     box.innerHTML = '';
-    var pts = STOP_ORDER.map(function (s) { return { lat: STOPS[s].lat, lng: STOPS[s].lng }; });
+    var pts = pinned.map(function (st) { return { lat: Number(st.lat), lng: Number(st.lng) }; });
     mapObj = new google.maps.Map(box, { mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
     var bounds = new google.maps.LatLngBounds();
-    STOP_ORDER.forEach(function (s, i) {
-      new google.maps.Marker({ position: pts[i], map: mapObj, label: String(i + 1), title: s });
+    pinned.forEach(function (st, i) {
+      new google.maps.Marker({ position: pts[i], map: mapObj, label: String(i + 1), title: st.name });
       bounds.extend(pts[i]);
     });
     var shell = getComputedStyle(document.documentElement).getPropertyValue('--shell').trim() || '#F26B5B';
@@ -701,6 +743,7 @@
     var inner = s.kind === 'idea' ? ideaSheet(ideaById(s.id))
       : s.kind === 'edit' ? editSheet(ideaById(s.id))
       : s.kind === 'add' ? addSheet(s.pre, s.day)
+      : s.kind === 'plan' ? planSheet()
       : tripSheet();
     return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet" role="dialog" aria-modal="true">'
       + '<div class="sheet-top"><span class="grab"></span><button class="btn icon" data-act="close-sheet" data-sfx="back" aria-label="Close" title="Close">' + icon('close') + '</button></div>'
@@ -718,7 +761,7 @@
     var credit = !d.photo_path && d.auto_credit ? '<span class="credit">' + esc(d.auto_credit) + '</span>' : '';
     var h = '<div class="hero">' + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '">' + credit : sceneSVG(d.scene, 'meet')) + '</div>'
       + '<h2 class="h-pixel lg">' + esc(d.title) + '</h2>'
-      + '<p class="meta">' + esc(d.stop) + ' · ' + STOPS[d.stop].tz + ' · by ' + esc(nameOf(d.created_by)) + '</p>'
+      + '<p class="meta">' + esc(d.stop) + ' · ' + esc(tzLabel(stopByName(d.stop).zone)) + ' · by ' + esc(nameOf(d.created_by)) + '</p>'
       + '<p class="meta">' + esc(status) + '</p>'
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
       + (d.link ? '<a class="src" href="' + esc(d.link) + '" target="_blank" rel="noopener">Open ' + esc(srcName(d.link)) + ' ↗</a>' : '');
@@ -802,6 +845,51 @@
       + '<div class="row"><button class="btn primary" data-act="add-submit" data-pre="' + (pre ? '1' : '0') + '"><span class="glyph">A</span>' + (pre ? 'Plan it' : 'Add') + '</button></div>';
   }
 
+  // Every zone the phone knows, so nobody types one. Older Safari lacks the list.
+  var ZONES = (function () {
+    try { if (Intl.supportedValuesOf) return Intl.supportedValuesOf('timeZone'); } catch (e) {}
+    return ['Asia/Tokyo', 'Asia/Ho_Chi_Minh', 'Asia/Bangkok', 'Asia/Vientiane', 'Asia/Singapore',
+            'Asia/Seoul', 'Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Taipei', 'Asia/Manila', 'Asia/Kolkata',
+            'Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane', 'Australia/Perth',
+            'Pacific/Auckland', 'Europe/London', 'Europe/Paris', 'America/New_York', 'America/Los_Angeles', 'UTC'];
+  })();
+
+  function planSheet() {
+    var d = S.planDraft;
+    var total = d.stops.reduce(function (a, x) { return a + Math.max(1, Number(x.days) || 1); }, 0);
+    var h = '<h2 class="h-pixel lg">Dates and stops</h2>'
+      + '<label class="lbl">First day of the trip<input id="pStart" type="date" value="' + esc(d.start) + '"></label>'
+      + '<p class="meta">Stops in the order you visit them. Day numbers follow on from one stop to the next.</p>';
+    var day = 1;
+    d.stops.forEach(function (st, i) {
+      var n = Math.max(1, Number(st.days) || 1);
+      // Browsers list some zones under older names (Chrome has Asia/Saigon, not
+      // Asia/Ho_Chi_Minh). A zone missing from the list made the select fall back
+      // to its first entry, so saving moved Vietnam to Africa/Abidjan. A stop's own
+      // zone is always offered.
+      var list = st.zone && ZONES.indexOf(st.zone) < 0 ? [st.zone].concat(ZONES) : ZONES;
+      var zones = list.map(function (z) {
+        return '<option' + (z === st.zone ? ' selected' : '') + '>' + esc(z) + '</option>';
+      }).join('');
+      h += '<div class="sugg" data-stop-row="' + i + '">'
+        + '<div class="row"><span class="glyph">' + (i + 1) + '</span>'
+        + '<input data-f="name" value="' + esc(st.name) + '" placeholder="Place, e.g. Kyoto" aria-label="Stop ' + (i + 1) + ' name">'
+        + '<button class="btn icon" data-act="plan-del" data-i="' + i + '" aria-label="Remove stop ' + (i + 1) + '" title="Remove"'
+        + (d.stops.length < 2 ? ' disabled' : '') + '>' + icon('close') + '</button></div>'
+        + '<div class="row"><label class="lbl">Days<input data-f="days" type="number" min="1" max="60" value="' + n + '"></label>'
+        + '<label class="lbl" style="flex:1">Time zone<select data-f="zone">' + zones + '</select></label></div>'
+        + '<p class="meta">Day ' + day + (n > 1 ? ' to ' + (day + n - 1) : '') + '</p>'
+        + '</div>';
+      day += n;
+    });
+    h += '<div class="row"><button class="btn" data-act="plan-add">' + icon('plus') + 'Add a stop</button>'
+      + '<span class="meta">' + total + ' days in all</span></div>'
+      + '<p class="err" id="pErr"></p>'
+      + '<div class="row"><button class="btn primary" data-act="plan-save"><span class="glyph">A</span>Save</button>'
+      + '<button class="btn" data-act="trip-open" data-sfx="back">' + icon('back') + 'Back</button></div>';
+    return h;
+  }
+
   function tripSheet() {
     var m = myMember(), owner = isOwner(), manage = canManage(), admin = isSecretAdmin();
     var active = S.data.members.filter(isActive).length;
@@ -834,6 +922,11 @@
       h += '<input id="kickReason" placeholder="Reason"></div>';
     }
 
+    if (owner) {
+      var pl = plan();
+      h += '<div class="row"><button class="btn primary" data-act="plan-open"><span class="glyph">A</span>Dates and stops</button>'
+        + '<span class="meta">' + pl.ndays + ' days from ' + esc(dayLabel(1).split(' · ')[1]) + '</span></div>';
+    }
     var archived = S.data.ideas.filter(function (x) { return x.status === 'removed'; }).length;
     h += '<div class="row"><button class="btn" data-act="tab" data-tab="archive">Archive · ' + archived + '</button>'
       + '<button class="btn" data-act="about">About Walkies</button>'
@@ -897,6 +990,79 @@
   H['add-open'] = function () { S.sheet = { kind: 'add', pre: false, day: S.day }; render(); };
   H['preset-open'] = function () { S.sheet = { kind: 'add', pre: true, day: S.day }; render(); };
   H['trip-open'] = function () { S.sheet = { kind: 'trip' }; render(); };
+
+  // The editor works on a copy, so nothing changes until Save, and adding or
+  // removing a row keeps what has already been typed.
+  function readPlanDraft() {
+    var d = S.planDraft;
+    var st = document.getElementById('pStart');
+    if (st) d.start = st.value;
+    document.querySelectorAll('[data-stop-row]').forEach(function (row) {
+      var x = d.stops[Number(row.dataset.stopRow)];
+      if (!x) return;
+      var name = row.querySelector('[data-f="name"]').value.trim();
+      if (name !== x.name) { x.lat = null; x.lng = null; }   // a new name needs a new pin
+      x.name = name;
+      x.days = Math.max(1, Number(row.querySelector('[data-f="days"]').value) || 1);
+      x.zone = row.querySelector('[data-f="zone"]').value;
+    });
+  }
+  H['plan-open'] = function () {
+    var p = plan();
+    S.planDraft = {
+      start: p.start,
+      stops: p.stops.map(function (x) { return { name: x.name, days: x.days, zone: x.zone, lat: x.lat, lng: x.lng }; })
+    };
+    S.sheet = { kind: 'plan' };
+    render();
+  };
+  H['plan-add'] = function () {
+    readPlanDraft();
+    var last = S.planDraft.stops[S.planDraft.stops.length - 1];
+    S.planDraft.stops.push({ name: '', days: 1, zone: last ? last.zone : 'UTC', lat: null, lng: null });
+    render();
+  };
+  H['plan-del'] = function (el) {
+    readPlanDraft();
+    if (S.planDraft.stops.length > 1) S.planDraft.stops.splice(Number(el.dataset.i), 1);
+    render();
+  };
+  H['plan-save'] = async function () {
+    readPlanDraft();
+    var d = S.planDraft;
+    if (!d.start) return setErr('pErr', 'Pick the first day of the trip.');
+    if (d.stops.some(function (x) { return !x.name; })) return setErr('pErr', 'Every stop needs a name.');
+    var names = d.stops.map(function (x) { return x.name.toLowerCase(); });
+    if (names.some(function (n, i) { return names.indexOf(n) !== i; })) return setErr('pErr', 'Two stops have the same name.');
+
+    // Ideas keep the stop they were filed under. Say which would be left behind.
+    var kept = d.stops.map(function (x) { return x.name; });
+    var stray = {};
+    S.data.ideas.forEach(function (i) { if (i.status !== 'removed' && kept.indexOf(i.stop) < 0) stray[i.stop] = (stray[i.stop] || 0) + 1; });
+    var lost = Object.keys(stray);
+    if (lost.length && !confirm('These stops have ideas and are no longer on the trip: '
+        + lost.map(function (k) { return k + ' (' + stray[k] + ')'; }).join(', ')
+        + '. Those ideas stay, under their old stop, until you edit them. Save anyway?')) return;
+
+    // New or renamed stops get a map pin. A stop we cannot place still saves.
+    setErr('pErr', '');
+    for (var i = 0; i < d.stops.length; i++) {
+      var x = d.stops[i];
+      if (x.lat != null && x.lng != null) continue;
+      try {
+        var r = await sb.functions.invoke('preview', { body: { geocode: x.name } });
+        if (r && r.data && r.data.lat != null) { x.lat = r.data.lat; x.lng = r.data.lng; }
+      } catch (e) { /* no pin for this one; it is still a stop */ }
+    }
+    var save = await sb.rpc('set_trip_plan', { p_trip: S.tripId, p_start: d.start, p_stops: d.stops });
+    if (save.error) return setErr('pErr', save.error.message);
+    var unpinned = d.stops.filter(function (x) { return x.lat == null; }).map(function (x) { return x.name; });
+    S.sheet = null;
+    S.planDraft = null;
+    toast(unpinned.length ? 'Saved. Not on the map: ' + unpinned.join(', ') + '.' : 'Saved. The days have moved to match.',
+          unpinned.length ? 'new' : 'success');
+    await refresh();
+  };
 
   H['add-submit'] = async function (el) {
     var pre = el.dataset.pre === '1';

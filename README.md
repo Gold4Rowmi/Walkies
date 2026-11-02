@@ -20,10 +20,17 @@ Live at **https://rowmi-walkies.netlify.app** · database: the `Lao-holiday` Sup
 
 ## Changing the trip
 
-Two places, and nothing else:
+In the app: **Trip (menu) → Dates and stops.** Owner only.
 
-- **Dates** — `TRIP_START` in `config.js`, as `YYYY-MM-DD`. Every day label is worked out from it.
-- **Stops and days** — the `STOPS` table at the top of `app.js`: first day, last day, time zone, and the coordinates for the map pin. Change `NDAYS` to match the last day.
+- **First day** sets every day label.
+- **Stops** go in the order you visit them, each with a number of days and a time zone.
+  Day numbers run straight through, so changing one stop's days moves every later day.
+- New or renamed stops are looked up on Wikipedia for their map pin. A stop it cannot
+  place still saves, and the map says which ones are missing.
+- Ideas keep the stop name they were filed under. Removing or renaming a stop that has
+  ideas warns first; those ideas stay under the old name until you edit them.
+
+A trip that has never been set up uses the built-in Japan and Vietnam list in `app.js`.
 
 ## The rules, and where they live
 
