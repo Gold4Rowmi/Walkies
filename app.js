@@ -597,6 +597,7 @@
     render();
     S.loading = false;
     await refresh();
+    setTimeout(askForPush, 4000);
   }
   function backToTrips() {
     try { localStorage.removeItem('walkies_last_trip'); } catch (e) {}
@@ -1089,6 +1090,7 @@
       : s.kind === 'add' ? addSheet(s.pre, s.day)
       : s.kind === 'plan' ? planSheet()
       : s.kind === 'settings' ? settingsSheet()
+      : s.kind === 'push-ask' ? pushAskSheet()
       : tripSheet();
     var opening = sheetKey() !== lastSheetKey;
     return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet' + (opening ? ' opening' : '') + '" role="dialog" aria-modal="true">'
@@ -1390,8 +1392,12 @@
   H.day = function (el) { S.day = Number(el.dataset.id); render(); };
   H['open-idea'] = function (el) { S.sheet = { kind: 'idea', id: el.dataset.id }; render(); };
   H['edit-open'] = function (el) { S.sheet = { kind: 'edit', id: el.dataset.id }; render(); };
-  H['close-sheet'] = function () { S.sheet = null; render(); };
-  H['close-bg'] = function (el, ev) { if (ev.target === el) { S.sheet = null; SFX.back(); render(); } };
+  function closeSheet() {
+    if (S.sheet && S.sheet.kind === 'push-ask') { try { localStorage.setItem('walkies_push_ask', String(Date.now())); } catch (e) {} }
+    S.sheet = null; render();
+  }
+  H['close-sheet'] = closeSheet;
+  H['close-bg'] = function (el, ev) { if (ev.target === el) { SFX.back(); closeSheet(); } };
   H['add-open'] = function () { S.sheet = { kind: 'add', pre: false, day: S.day }; render(); };
   H['preset-open'] = function () { S.sheet = { kind: 'add', pre: true, day: S.day }; render(); };
   H['trip-open'] = function () { S.tab = 'trip'; S.sheet = null; render(); };
@@ -1804,6 +1810,43 @@
     var tb = document.getElementById('briefBtn');
     if (tb) tb.hidden = !sub;
   }
+  // ---------- Asking for notifications: once, a few seconds in, never over a sheet ----------
+  // "Not now" waits a week. Already on, blocked, or a browser that can't do it: never asked.
+  function onIphoneTab() { return /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone; }
+  async function askForPush() {
+    if (!S.tripId || !S.data || S.sheet || S.offline || !CFG.VAPID_PUBLIC) return;
+    var last = 0;
+    try { last = Number(localStorage.getItem('walkies_push_ask') || 0); } catch (e) {}
+    if (Date.now() - last < 7 * 86400e3) return;
+    if (onIphoneTab()) { S.sheet = { kind: 'push-ask', install: true }; bark('tag'); return render(); }
+    if (!pushSupported() || !('Notification' in window) || Notification.permission === 'denied') return;
+    try {
+      var reg = await navigator.serviceWorker.ready;
+      if (await reg.pushManager.getSubscription()) return;
+    } catch (e) { return; }
+    if (S.sheet) return;
+    S.sheet = { kind: 'push-ask' }; bark('tag'); render();
+  }
+  function pushAskSheet() {
+    var install = S.sheet.install;
+    return '<div class="state">' + dogSVG('alert', 60) + '<b>Morning briefs</b>'
+      + '<p>Each morning at 7, wherever you are: the day’s plans and the weather. One a day, nothing else.</p>'
+      + (install
+          ? '<p>On an iPhone they only work from the home screen. Tap Share, then Add to Home Screen, and open Walkies from there.</p>'
+            + '<button class="btn primary" data-act="push-later"><span class="glyph">A</span>Got it</button>'
+          : '<button class="btn primary" data-act="push-yes"><span class="glyph">A</span>Turn on notifications</button>'
+            + '<button class="btn ghost" data-act="push-later" data-sfx="back">Not now</button>')
+      + '</div>';
+  }
+  H['push-later'] = function () {
+    try { localStorage.setItem('walkies_push_ask', String(Date.now())); } catch (e) {}
+    S.sheet = null; render();
+  };
+  H['push-yes'] = async function () {
+    try { localStorage.setItem('walkies_push_ask', String(Date.now())); } catch (e) {}
+    S.sheet = null; render();
+    await H.push();
+  };
   H['test-brief'] = async function () {
     var r = await sb.functions.invoke('brief', { body: { test: true, trip_id: S.tripId } });
     if (r.error) {
@@ -1994,7 +2037,7 @@
     if (document.querySelector('dialog[open]')) return;
     var tg = e.target, typing = tg && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName);
     // B: close the sheet that's open
-    if (e.key === 'Escape' && S.sheet) { e.preventDefault(); SFX.back(); S.sheet = null; render(); return; }
+    if (e.key === 'Escape' && S.sheet) { e.preventDefault(); SFX.back(); closeSheet(); return; }
     // L / R: the tabs
     if (e.key === 'Tab' && e.ctrlKey && S.data && !S.sheet) {
       e.preventDefault();
