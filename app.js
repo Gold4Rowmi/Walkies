@@ -753,13 +753,13 @@
       : S.tab === 'archive' ? archiveHTML()
       : S.tab === 'trip' ? tripSheet()
       : ideasHTML();
-    app.innerHTML = '<div class="screen">' + headerHTML()
+    app.innerHTML = '<div class="screen trip">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
       + offlineBanner()
       + '<div class="hub"><div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div></div>'
       + '<div class="body' + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '">' + body + '</div>'
       + actbarHTML(true)
-      + (S.sheet ? sheetHTML() : '')
+      + (S.sheet ? sheetHTML() : sideEmpty())
       + '</div>';
     // An empty pool is a quiet screen: he dozes until there's something to look at
     S.lastTabAt = at;
@@ -778,8 +778,15 @@
     return d.day && stopFor(d.day) === d.stop ? '<span class="tag maybe" title="Maybe ' + esc(dayLabel(d.day)) + '">Day ' + d.day + '</span>' : '';
   }
 
+  // On a wide screen what you open sits in the right-hand panel; the card it
+  // came from keeps the four blue corner brackets, so you can see which one it is.
+  function picked(d) { return S.sheet && S.sheet.id === d.id ? ' aria-selected="true"' : ''; }
+  function sideEmpty() {
+    return '<aside class="side-empty" aria-hidden="true"><div class="state">' + dogSVG('sleepy', 60)
+      + '<b>Nothing open</b><span>Pick an idea or a plan and it opens here.</span></div></aside>';
+  }
   function ideaCard(d) {
-    return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '">'
+    return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
       + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="mrow">' + avatar(d.created_by) + maybeDay(d) + voteCount(d.id) + '</span>'
@@ -796,7 +803,7 @@
     return head + stopNames().map(function (s) {
       var items = pool.filter(function (d) { return d.stop === s; });
       if (!items.length) return '';
-      return '<h3 class="h-pixel">' + esc(s) + '</h3>' + items.map(ideaCard).join('');
+      return '<h3 class="h-pixel">' + esc(s) + '</h3><div class="cards">' + items.map(ideaCard).join('') + '</div>';
     }).join('');
   }
 
@@ -826,7 +833,7 @@
     var tags = (d.start_time ? '<span class="tag ok">' + hhmm(d.start_time) + '</span>' : '<span class="tag">no time</span>')
       + (d.booked ? ' <span class="tag booked">Booked' + (d.booking_ref ? ' · ' + esc(d.booking_ref) : '') + '</span>' : '')
       + (d.kind === 'travel' ? ' <span class="tag">Travel</span>' : '');
-    return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
+    return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
       + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="mrow">' + avatar(d.created_by) + tags + '</span></span></button>';
