@@ -459,7 +459,7 @@
   function catBadge(c, label) {
     if (!c || !CATS[c]) return '';
     return '<span class="cat cat-' + c + (label ? ' lab' : '') + '" title="' + CATS[c].name + '"' + (label ? '' : ' role="img" aria-label="' + CATS[c].name + '"') + '>'
-      + catIcon(c, 12) + (label ? '<span>' + CATS[c].name + '</span>' : '') + '</span>';
+      + catIcon(c, 16) + (label ? '<span>' + CATS[c].name + '</span>' : '') + '</span>';
   }
   // Rules first from the title (what the family wrote), then from Wikipedia's
   // one-liner. Order matters: "night market" is food, "Ha Long Bay cruise" is
@@ -926,9 +926,9 @@
   }
   function ideaCard(d) {
     return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
-      + '<span class="sc">' + thumb(d) + catBadge(catOf(d), WIDE.matches) + '</span>'
+      + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="mrow">' + avatar(d.created_by) + maybeDay(d) + voteCount(d.id) + '</span>'
+      + '<span class="mrow">' + catBadge(catOf(d), WIDE.matches) + avatar(d.created_by) + maybeDay(d) + voteCount(d.id) + '</span>'
       + '</span></button>';
   }
 
@@ -984,16 +984,16 @@
       + (d.booked ? ' <span class="tag booked">Booked' + (d.booking_ref ? ' · ' + esc(d.booking_ref) : '') + '</span>' : '')
 ;
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
-      + '<span class="sc">' + thumb(d) + catBadge(catOf(d)) + '</span>'
+      + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="mrow">' + avatar(d.created_by) + tags + '</span></span></button>';
+      + '<span class="mrow">' + catBadge(catOf(d)) + avatar(d.created_by) + tags + '</span></span></button>';
   }
 
   function slotCard(d) {
     var v = votesFor(d.id).length;
-    return '<div class="card slot"><span class="sc">' + thumb(d) + catBadge(catOf(d)) + '</span>'
+    return '<div class="card slot"><span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="mrow">' + avatar(d.created_by) + '<span class="tag slot">Slot suggested</span>' + voteCount(d.id) + '</span>'
+      + '<span class="mrow">' + catBadge(catOf(d)) + avatar(d.created_by) + '<span class="tag slot">Slot suggested</span>' + voteCount(d.id) + '</span>'
       + '<span class="row">'
       + '<button class="btn" data-act="take" data-id="' + esc(d.id) + '" data-day="' + d.day + '" data-dur="' + (d.duration_min || 60) + '">Take slot</button></span>'
       + '</span></div>';
