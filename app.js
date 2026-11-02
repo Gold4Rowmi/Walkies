@@ -390,6 +390,7 @@
     if (!S.data) return renderTripLoading();
     renderTrip();
     if (S.tab === 'map') drawMap();
+    findPhotos();
   }
 
   function renderSetup() {
@@ -680,7 +681,8 @@
       ? (d.day ? 'Planned on ' + dayLabel(d.day) + (d.start_time ? ' at ' + hhmm(d.start_time) : '') : 'Planned, no day yet')
       : d.status === 'removed' ? 'In the archive' + (d.archive_reason ? ' · ' + d.archive_reason : '') : 'In the pool';
     var pu = photoUrl(d);
-    var h = '<div class="hero">' + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '">' : sceneSVG(d.scene, 'meet')) + '</div>'
+    var credit = !d.photo_path && d.auto_credit ? '<span class="credit">' + esc(d.auto_credit) + '</span>' : '';
+    var h = '<div class="hero">' + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '">' + credit : sceneSVG(d.scene, 'meet')) + '</div>'
       + '<h2 class="h-pixel lg">' + esc(d.title) + '</h2>'
       + '<p class="meta">' + esc(d.stop) + ' · ' + STOPS[d.stop].tz + ' · by ' + esc(nameOf(d.created_by)) + '</p>'
       + '<p class="meta">' + esc(status) + '</p>'
@@ -1074,6 +1076,39 @@
     toast('Photo removed. The drawing is back.', 'new');
     await refresh();
   };
+
+  // ---------- Finding a photo by the place's name ----------
+  // auto_photo is null until we have looked, then '' for nothing found, so a
+  // miss is remembered and never asked about again. Bounded per load, because
+  // a quiet trickle beats a burst on hotel wifi.
+  var lookingUp = false;
+  async function findPhotos() {
+    if (lookingUp || !S.data) return;
+    var todo = S.data.ideas.filter(function (d) {
+      return d.auto_photo == null && !d.photo_path && d.kind !== 'travel' && d.status !== 'removed';
+    }).slice(0, 4);
+    if (!todo.length) return;
+    lookingUp = true;
+    var found = 0;
+    try {
+      for (var i = 0; i < todo.length; i++) {
+        var d = todo[i];
+        var r = await sb.functions.invoke('preview', { body: { title: d.title, stop: d.stop, kind: d.kind } });
+        var hit = (r && r.data) || {};
+        var save = await sb.rpc('set_auto_photo', {
+          p_idea: d.id, p_url: hit.thumbnail || '', p_credit: hit.credit || ''
+        });
+        if (save.error) break;
+        d.auto_photo = hit.thumbnail || '';
+        d.auto_credit = hit.credit || '';
+        if (hit.thumbnail) found++;
+      }
+    } catch (e) {
+      // A photo is a nicety. If the lookup fails the drawing stays.
+    }
+    lookingUp = false;
+    if (found) render();
+  }
 
   // ---------- Push notifications ----------
   function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && CFG.VAPID_PUBLIC; }
