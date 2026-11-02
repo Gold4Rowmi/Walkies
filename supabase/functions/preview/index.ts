@@ -40,7 +40,14 @@
 // coordinates across the whole result, so colimit=1 left every article
 // after the first without them.
 
-const json = (b: unknown) => new Response(JSON.stringify(b), { headers: { 'content-type': 'application/json' } });
+// The app calls this from the browser, on another origin, so every answer
+// needs CORS headers or the browser hides it and the app sees a failure.
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
+  'access-control-allow-methods': 'POST, OPTIONS',
+};
+const json = (b: unknown) => new Response(JSON.stringify(b), { headers: { ...CORS, 'content-type': 'application/json' } });
 const UA = 'Walkies/1.0 (family trip planner; +https://github.com/Gold4Rowmi/walkies)';
 const WIKI = 'https://en.wikipedia.org/w/api.php';
 
@@ -61,7 +68,7 @@ const GENERIC = new Set([
 
 const words = (s: string) =>
   (s || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // sensō-ji -> senso-ji, Hội -> Hoi
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // sensō-ji -> senso-ji, Hội -> Hoi
     .toLowerCase()
     .replace(/[^a-z0-9\s]+/g, ' ')
     .split(/\s+/)
@@ -131,6 +138,7 @@ async function geocode(place: string) {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   let body: Record<string, string> = {};
   try { body = (await req.json()) ?? {}; } catch { /* no body */ }
   try {

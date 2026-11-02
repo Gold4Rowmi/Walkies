@@ -1380,7 +1380,9 @@
       for (var i = 0; i < todo.length; i++) {
         var d = todo[i];
         var r = await sb.functions.invoke('preview', { body: { title: d.title, stop: d.stop, kind: d.kind } });
-        var hit = (r && r.data) || {};
+        // A failed call is not a miss: record nothing, so the next load asks again.
+        if (r.error || !r.data || r.data.error) { photoLookupBroken((r.error && r.error.message) || (r.data && r.data.error) || 'no answer'); break; }
+        var hit = r.data;
         var save = await sb.rpc('set_auto_photo', {
           p_idea: d.id, p_url: hit.thumbnail || '', p_credit: hit.credit || ''
         });
