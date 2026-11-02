@@ -2,7 +2,7 @@
 // The app's own files: network first, so the family sees the latest when there's signal.
 // The Supabase library and fonts: kept and refreshed in the background.
 // Photos: kept once seen, so cards and the big picture show offline.
-const CACHE = 'walkies-v26';
+const CACHE = 'walkies-v27';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'cities.js', 'places.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png'];
 

@@ -503,6 +503,28 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
   .side-near .sugg > .meta{display:none}
   .side-near .nearby{padding-bottom:12px}
 }
+/* The selection cursor: one set of brackets that glides between cards (desktop) */
+.cursor{display:none}
+@media (min-width: 960px) {
+  .screen.trip > .body{position:relative}
+  .screen.trip > .body .card[aria-selected="true"]::before,.screen.trip > .body .card[aria-selected="true"]::after,
+  .screen.trip > .body .card[aria-selected="true"] > .bk::before,.screen.trip > .body .card[aria-selected="true"] > .bk::after{content:none}
+  .screen.trip > .body .card[aria-selected="true"]:focus-visible{outline:none}   /* the brackets already say where you are */
+  .screen.trip > .body > *{max-width:1120px}
+  .cursor{display:block; position:absolute; left:0; top:0; z-index:2; pointer-events:none}
+  .cursor.glide{transition:transform var(--t-cursor) var(--ease-spring), width var(--t-cursor) var(--ease-spring), height var(--t-cursor) var(--ease-spring)}
+  .cursor.land{animation:land .16s var(--ease)}
+  @keyframes land{40%{scale:1.02 .97}}
+  /* Breathe while it waits: the corners step out a pixel and back, two frames */
+  .cursor > b{position:absolute; inset:0; animation:breathe 1.2s steps(1,end) infinite}
+  @keyframes breathe{50%{inset:-1px}}
+  .cursor i{position:absolute; inset:0}
+  .cursor i::before,.cursor i::after{content:""; position:absolute; width:10px; height:10px; border:3px solid var(--signal)}
+  .cursor i:first-child::before{left:-6px; top:-6px; border-right:0; border-bottom:0}
+  .cursor i:first-child::after{right:-6px; top:-6px; border-left:0; border-bottom:0}
+  .cursor i:last-child::before{left:-6px; bottom:-6px; border-right:0; border-top:0}
+  .cursor i:last-child::after{right:-6px; bottom:-6px; border-left:0; border-top:0}
+}
 @media (min-width: 960px) and (hover: hover) {
   .screen.trip .tabbar button:not([aria-selected="true"]):hover,.dayrow:not(.on):hover{background:var(--surface-sunken)}
 }

@@ -682,8 +682,71 @@
       renderTrip();
     });
     if (S.tab === 'map') drawMap();
+    placeCursor();
     findPhotos();
   }
+
+  // ---------- The selection cursor (desktop) ----------
+  // One set of blue corner brackets that glides to what you picked and
+  // squashes as it lands, like the DS menu, instead of reappearing on each
+  // card. It lives in the page's own scroll, so it moves with the content.
+  var curFrom = null;
+  function curBox(c, b) { c.style.width = b.w + 'px'; c.style.height = b.h + 'px'; c.style.transform = 'translate(' + b.x + 'px,' + b.y + 'px)'; }
+  function placeCursor() {
+    var page = document.querySelector('.screen.trip > .body');
+    var card = WIDE.matches && page && page.querySelector('.card[aria-selected="true"]');
+    if (!card) { curFrom = null; return; }
+    var old = page.querySelector('.cursor'); if (old) old.remove();
+    var pr = page.getBoundingClientRect(), cr = card.getBoundingClientRect();
+    var to = { key: page.dataset.key, x: cr.left - pr.left + page.scrollLeft, y: cr.top - pr.top + page.scrollTop, w: cr.width, h: cr.height };
+    var from = curFrom && curFrom.key === to.key ? curFrom : null;
+    var moved = from && (from.x !== to.x || from.y !== to.y || from.w !== to.w || from.h !== to.h);
+    var c = document.createElement('span');
+    c.className = 'cursor'; c.setAttribute('aria-hidden', 'true'); c.innerHTML = '<b><i></i><i></i></b>';
+    curBox(c, moved ? from : to);
+    page.appendChild(c);
+    if (moved) {
+      c.getBoundingClientRect();   // start from the old card before gliding
+      c.classList.add('glide'); curBox(c, to);
+      c.addEventListener('transitionend', function f(e) {
+        if (e.propertyName !== 'transform') return;
+        c.removeEventListener('transitionend', f); c.classList.add('land');
+      });
+    }
+    curFrom = to;
+  }
+  var curTimer = null;
+  addEventListener('resize', function () { clearTimeout(curTimer); curTimer = setTimeout(function () { curFrom = null; placeCursor(); }, 120); });
+
+  // Arrow keys move the selection through the page's ideas and plans.
+  // Left and right step through them in order; up and down go to the nearest
+  // one in the row above or below, so the photo grid moves the way it looks.
+  document.addEventListener('keydown', function (e) {
+    if (!WIDE.matches || !S.data || !/^Arrow/.test(e.key) || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    var tg = e.target;
+    if (tg && (/^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName) || tg.closest('.hub, .sheet, [role="tablist"]'))) return;
+    var page = document.querySelector('.screen.trip > .body');
+    var cards = page ? [].slice.call(page.querySelectorAll('.card[data-act="open-idea"]')) : [];
+    if (!cards.length) return;
+    var cur = page.querySelector('.card[aria-selected="true"]'), i = cards.indexOf(cur), next = null;
+    if (i < 0) next = cards[0];
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') next = cards[i + (e.key === 'ArrowRight' ? 1 : -1)];
+    else {
+      var a = cur.getBoundingClientRect(), down = e.key === 'ArrowDown', best = null;
+      cards.forEach(function (c) {
+        var b = c.getBoundingClientRect();
+        if (down ? b.top < a.bottom - 1 : b.bottom > a.top + 1) return;
+        var dy = Math.abs(b.top - a.top), dx = Math.abs((b.left + b.right) / 2 - (a.left + a.right) / 2);
+        if (!best || dy < best.dy - 1 || (Math.abs(dy - best.dy) <= 1 && dx < best.dx)) best = { c: c, dy: dy, dx: dx };
+      });
+      next = best && best.c;
+    }
+    e.preventDefault();
+    if (!next) return;
+    next.click();
+    var n = document.querySelector('.screen.trip > .body .card[aria-selected="true"]');
+    if (n) { n.focus({ preventScroll: true }); n.scrollIntoView({ block: 'nearest' }); }
+  });
 
   function renderSetup() {
     app.innerHTML = '<div class="screen"><header class="head"><span class="pixel appname">Walkies</span></header>'
