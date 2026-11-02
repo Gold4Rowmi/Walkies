@@ -214,15 +214,25 @@
   }
   function sceneFor(kind) { return kind === 'travel' ? 'plane' : 'walk'; }
 
-  // A photo if someone added one, otherwise the pixel scene.
-  function photoUrl(d) {
-    if (!d.photo_path || !sb) return '';
-    try { return sb.storage.from('idea-photos').getPublicUrl(d.photo_path).data.publicUrl; }
+  // A photo if there is one, otherwise the pixel scene.
+  var THUMB_SUFFIX = '-t.jpg';
+  function storageUrl(path) {
+    if (!path || !sb) return '';
+    try { return sb.storage.from('idea-photos').getPublicUrl(path).data.publicUrl; }
     catch (e) { return ''; }
   }
+  function photoUrl(d) { return storageUrl(d.photo_path) || (d.auto_photo || ''); }
+  function thumbUrl(d) {
+    if (d.photo_path) return storageUrl(d.photo_path.replace(/\.jpg$/, THUMB_SUFFIX));
+    return d.auto_photo || '';
+  }
   function thumb(d) {
-    var u = photoUrl(d);
-    return u ? '<img src="' + esc(u) + '" alt="" loading="lazy">' : sceneSVG(d.scene);
+    var t = thumbUrl(d);
+    if (!t) return sceneSVG(d.scene);
+    // Uploads from before the small file existed fall back to the big one.
+    var full = photoUrl(d);
+    return '<img src="' + esc(t) + '" alt="" loading="lazy" decoding="async" width="52" height="52"'
+      + (full && full !== t ? ' onerror="this.onerror=null;this.src=\'' + esc(full) + '\'"' : '') + '>';
   }
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
@@ -1024,17 +1034,19 @@
 
   // ---------- Photos ----------
   // iPhone photos are far bigger than this needs. Shrink to 1200px before sending.
-  function shrink(file) {
+  // Two sizes from one pick: a big one for the sheet, a small one for the 52px card.
+  // Supabase only resizes on paid plans, so the phone does it.
+  function resize(file, max, quality) {
     return new Promise(function (resolve, reject) {
       var img = new Image(), url = URL.createObjectURL(file);
       img.onload = function () {
         URL.revokeObjectURL(url);
-        var max = 1200, w = img.naturalWidth, h = img.naturalHeight;
+        var w = img.naturalWidth, h = img.naturalHeight;
         var scale = Math.min(1, max / Math.max(w, h));
         var c = document.createElement('canvas');
         c.width = Math.round(w * scale); c.height = Math.round(h * scale);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        c.toBlob(function (b) { resolve(b || file); }, 'image/jpeg', 0.82);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error('That photo would not convert.')); }, 'image/jpeg', quality);
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('That file is not an image we can read.')); };
       img.src = url;
@@ -1043,11 +1055,15 @@
   async function uploadPhoto(ideaId, file) {
     var msg = document.getElementById('uplMsg');
     if (msg) msg.textContent = 'Uploading…';
-    var blob = await shrink(file);
-    var path = S.tripId + '/' + ideaId + '-' + Date.now() + '.jpg';
-    var up = await sb.storage.from('idea-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-    if (up.error) throw up.error;
-    var r = await sb.rpc('set_idea_photo', { p_idea: ideaId, p_path: path });
+    var stamp = Date.now();
+    var base = S.tripId + '/' + ideaId + '-' + stamp;
+    var pair = await Promise.all([resize(file, 1400, 0.82), resize(file, 220, 0.7)]);
+    var put = function (path, blob) {
+      return sb.storage.from('idea-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    };
+    var ups = await Promise.all([put(base + '.jpg', pair[0]), put(base + THUMB_SUFFIX, pair[1])]);
+    for (var i = 0; i < ups.length; i++) if (ups[i].error) throw ups[i].error;
+    var r = await sb.rpc('set_idea_photo', { p_idea: ideaId, p_path: base + '.jpg' });
     if (r.error) throw r.error;
     toast('Photo added.', 'success');
     await refresh();
