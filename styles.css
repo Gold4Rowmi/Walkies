@@ -404,52 +404,81 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
   .actbar .in{max-width:568px}
 }
 
-/* ===== Desktop: list on the left, what you open on the right ===== */
+/* ===== Desktop: an app window, not a stretched phone =====
+   Left: the trip, its tabs and (on Days) every day by stop, with Settings and Add at the foot.
+   Middle: the page, on grid paper, scrolling on its own. Right: whatever you opened.
+   Each column scrolls by itself, so the tabs and the panel never leave the screen. */
 @media (min-width: 960px) {
-  /* The grid paper runs edge to edge; the app sits on it, 1120 wide at most */
   html,body{background:var(--surface-base)}
-  body{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px); background-size:16px 16px}
-  .screen{max-width:1120px; background:none; overflow-x:visible}   /* the page itself clips; this lets the shell bar reach the edges */
-  .actbar .in{max-width:1088px}
+  .app{display:block}
 
-  /* The shell bar runs full width; its contents stay in the column */
-  .head{padding:0 16px}
-  .head::before{content:""; position:absolute; top:0; bottom:-2px; left:-100vmax; right:-100vmax; background:var(--shell); border-bottom:2px solid #16181D; z-index:-1}
-  .hub{padding:12px 16px}
-  .hub::before{content:""; position:absolute; top:0; bottom:-1px; left:-100vmax; right:-100vmax; background:var(--surface-base); border-bottom:1px solid var(--border); z-index:-1}
-  .hub .tabbar{max-width:560px}
-
-  .screen.trip{display:grid; grid-template-columns:minmax(0,1fr) 400px; column-gap:24px; align-items:start; align-content:start;
-    grid-template-areas:"head head" "admin admin" "banner banner" "hub hub" "body side"}
-  .screen.trip > .head{grid-area:head}
+  .screen.trip{max-width:none; height:100vh; height:100dvh; min-height:0; overflow:hidden; background:var(--surface-base);
+    display:grid; grid-template-columns:216px minmax(0,1fr) 380px; grid-template-rows:auto auto auto minmax(0,1fr) auto;
+    grid-template-areas:"head head head" "nav banner side" "nav admin side" "nav body side" "bar body side"}
+  .screen.trip > .head{grid-area:head; position:static; padding:0 20px}
   .screen.trip > .adminbar{grid-area:admin}
-  .screen.trip > .banner{grid-area:banner}
-  .screen.trip > .hub{grid-area:hub}
-  .screen.trip > .body{grid-area:body; padding-right:0}
-  .screen.trip .daybar{margin-right:0; padding-right:0}
-  .screen.trip > .sheet-wrap,.screen.trip > .side-empty{grid-area:side}
+  .screen.trip > .banner{grid-area:banner; padding:16px 32px 0}
+  .banner.install{display:none}   /* a phone thing; desktop finds it in Settings */
 
-  /* Two cards a row in the pool; a day stays one column, because order is the point there */
-  .cards{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+  /* Sidebar */
+  .screen.trip > .hub{grid-area:nav; position:static; z-index:auto; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px;
+    padding:20px 12px; background:var(--surface-raised); border:0; border-right:1px solid var(--border)}
+  .hub-trip{margin:0 8px; overflow-wrap:anywhere}
+  .screen.trip .tabbar{display:flex; flex-direction:column; padding:0; border:0; background:none}
+  .screen.trip .tabbar .ind{top:0; left:0; width:100%; height:44px; transform:translateY(calc(44px * var(--i,0)))}
+  .screen.trip .tabbar.moved .ind{animation-name:indslidev}
+  @keyframes indslidev{from{transform:translateY(calc(44px * var(--from,0)))}}
+  .screen.trip .tabbar button{height:44px; padding:0 12px; font-size:14px; display:flex; align-items:center; justify-content:space-between; text-align:left}
+  .screen.trip > .actbar{grid-area:bar; position:static; z-index:auto; padding:12px; border-top:1px solid var(--border); border-right:1px solid var(--border)}
+  .screen.trip > .actbar .in{max-width:none; flex-direction:column; align-items:stretch; gap:8px}
+  .screen.trip > .actbar .spacer{display:none}
 
-  /* The right-hand panel: what used to slide up from the bottom */
-  .screen.trip > .sheet-wrap,.screen.trip > .side-empty{
-    position:sticky; top:calc(64px + 80px + 12px); margin:12px 16px 0 0; inset:auto; display:block;
-    height:calc(100vh - 64px - 80px - 24px - var(--bar-h, 0px)); height:calc(100dvh - 64px - 80px - 24px - var(--bar-h, 0px));
-    background:none; z-index:auto}
-  .screen.trip .sheet{max-width:none; height:100%; max-height:none; border:1px solid var(--border); border-radius:var(--r-outer);
-    box-shadow:var(--frame); padding:4px 16px 24px}
+  /* Days, grouped by stop */
+  .dayrail{display:flex; flex-direction:column; gap:2px}
+  .rail-stop{font-size:12px; font-weight:600; color:var(--text-medium); padding:12px 8px 4px}
+  .dayrow{display:grid; grid-template-columns:24px minmax(0,1fr) auto; align-items:center; gap:8px; min-height:44px; padding:0 8px;
+    border:0; border-radius:var(--r-inner); background:none; font:inherit; font-size:14px; color:var(--text-high); text-align:left; cursor:pointer}
+  .dayrow b{font-weight:600; color:var(--text-medium); text-align:right}
+  .dayrow.on{background:var(--ink); color:var(--on-ink)}
+  .dayrow.on b{color:var(--on-ink)}
+  .dayrow.today b{color:var(--rust-text)}
+  .dayrow.today span::after{content:" · today"; color:var(--rust-text)}
+  .dayrow .n{min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:var(--rust); color:#16181D; font-size:12px; font-weight:600; display:grid; place-items:center}
+
+  /* The page */
+  .screen.trip > .body{grid-area:body; min-height:0; overflow-y:auto; padding:24px 32px 48px; gap:16px;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px); background-size:16px 16px}
+  .screen.trip > .body:not(.t-ideas):not(.t-map) > :not(.btn){width:100%; max-width:720px}
+  .screen.trip > .hub > .hair{margin:0 8px; width:auto}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px}
+  .t-map #mapbox{height:calc(100dvh - 64px - 160px); min-height:420px}
+
+  /* The panel: flush with the window, scrolling on its own */
+  .screen.trip > .sheet-wrap,.screen.trip > .side-empty{grid-area:side; position:static; inset:auto; height:auto; min-height:0; display:block; z-index:auto;
+    background:var(--surface-raised); border-left:1px solid var(--border)}
+  .screen.trip .sheet{max-width:none; height:100%; max-height:none; border:0; border-radius:0; box-shadow:none; padding:0 24px 32px}
   .screen.trip .sheet.opening{animation:panelin .2s var(--ease)}
   @keyframes panelin{from{transform:translateX(16px)}}
   .screen.trip .grab{visibility:hidden}
-  .side-empty{background:var(--surface-raised); border:1px dashed var(--border); border-radius:var(--r-outer)}
+  .screen.trip .hero{height:200px}
   .side-empty .state{height:100%; justify-content:center}
+  /* An open idea reads top down: what it is, vote, plan it, talk; photo and remove last */
+  .screen.trip .sbody > .upl,.screen.trip .sbody > #uplMsg{order:8}
+  .screen.trip .sbody > .sugg{order:9}
 
-  /* Off the trip (the trips list), a sheet is a centred dialog rather than a drawer */
+  /* Off the trip: one centred column under a full-width bar, sheets as dialogs */
+  .screen:not(.trip):not(.center){max-width:none}
+  .screen:not(.trip) > .head{padding:0 20px}
+  .screen:not(.trip) > .body,.screen:not(.trip) > .banner,.screen:not(.trip) > .notice{width:100%; max-width:640px; margin-inline:auto; box-sizing:border-box}
+  .screen:not(.trip) .actbar .in{max-width:608px}
   .screen:not(.trip) .sheet-wrap{align-items:center}
   .screen:not(.trip) .sheet{border-radius:var(--r-outer); border:1px solid var(--border); max-width:480px}
-
-  #mapbox{height:520px}
+}
+@media (min-width: 960px) and (hover: hover) {
+  .screen.trip .tabbar button:not([aria-selected="true"]):hover,.dayrow:not(.on):hover{background:var(--surface-sunken)}
+}
+@media (min-width: 1280px) {
+  .screen.trip{grid-template-columns:248px minmax(0,1fr) 440px}
 }
 
 /* A button on its own in a column sizes to its label, not the column */

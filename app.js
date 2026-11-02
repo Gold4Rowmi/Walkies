@@ -645,7 +645,12 @@
     var sh = document.querySelector('.sheet');
     var sheetTop = sh ? sh.scrollTop : 0;
     var sameSheet = sheetKey() === lastSheetKey;
+    var pg = document.querySelector('.screen.trip > .body'), pgTop = pg ? pg.scrollTop : 0, pgKey = pg ? pg.dataset.key : '';
+    var rail = document.querySelector('.hub'), railTop = rail ? rail.scrollTop : 0;
     fn();
+    var np = document.querySelector('.screen.trip > .body');
+    if (np && np.dataset.key === pgKey) np.scrollTop = pgTop;   // a new tab or day starts at its top
+    var nr = document.querySelector('.hub'); if (nr) nr.scrollTop = railTop;
     var ns = document.querySelector('.sheet');
     if (ns && sameSheet) ns.scrollTop = sheetTop;
     lastSheetKey = sheetKey();
@@ -662,6 +667,9 @@
     if (window.scrollY !== top) window.scrollTo(0, top);
   }
 
+  // Wide screens get the desktop layout: nav on the left, the page, what's open on the right
+  var WIDE = matchMedia('(min-width: 960px)');
+  WIDE.addEventListener && WIDE.addEventListener('change', function () { if (S.data) render(); });
   function render() {
     paint();
     barH();
@@ -713,7 +721,8 @@
   // The bar can wrap: keep the page's end, the toast and the egg above it
   function barH() {
     var bar = document.querySelector('.actbar');
-    document.documentElement.style.setProperty('--bar-h', (bar ? bar.offsetHeight : 0) + 'px');
+    var floats = bar && getComputedStyle(bar).position === 'fixed';
+    document.documentElement.style.setProperty('--bar-h', (floats ? bar.offsetHeight : 0) + 'px');
   }
 
   function renderTrips() {
@@ -760,8 +769,10 @@
     app.innerHTML = '<div class="screen trip">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
       + offlineBanner() + installBanner()
-      + '<div class="hub"><div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div></div>'
-      + '<div class="body' + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '">' + body + '</div>'
+      + '<div class="hub">' + (WIDE.matches ? '<span class="label hub-trip">' + esc(S.data.trip.name) + '</span>' : '')
+      + '<div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div>'
+      + (WIDE.matches && S.tab === 'days' ? dayRail() : '') + '</div>'
+      + '<div class="body t-' + S.tab + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '" data-key="' + S.tab + (S.tab === 'days' ? S.day : '') + '">' + body + '</div>'
       + actbarHTML(true)
       + (S.sheet ? sheetHTML() : sideEmpty())
       + '</div>';
@@ -867,10 +878,26 @@
       }).join('') + '</div>';
   }
 
+  var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function dayRail() {
+    var h = '<hr class="hair"><div class="dayrail" aria-label="Days">', last = null;
+    for (var k = 0; k <= plan().ndays; k++) {
+      var st = k ? stopFor(k) : null, c = plannedOn(k).length, dt = k ? dayDate(k) : null;
+      if (k && st !== last) { h += '<span class="rail-stop">' + esc(st) + '</span>'; last = st; }
+      h += '<button class="dayrow' + (S.day === k ? ' on' : '') + (k && k === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + k + '"'
+        + (S.day === k ? ' aria-current="true"' : '') + '>'
+        + '<b class="num">' + (k || '') + '</b><span>' + (k ? WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] : 'Unscheduled') + '</span>'
+        + (c ? '<span class="n" aria-label="' + c + ' planned">' + c + '</span>' : '') + '</button>';
+    }
+    return h + '</div>';
+  }
   function daysHTML() {
-    var n = S.day, chips = '<div class="daybar">' + dayChip(0);
-    for (var k = 1; k <= plan().ndays; k++) chips += dayChip(k);
-    chips += '</div>';
+    var n = S.day, chips = '';
+    if (!WIDE.matches) {
+      chips = '<div class="daybar">' + dayChip(0);
+      for (var k = 1; k <= plan().ndays; k++) chips += dayChip(k);
+      chips += '</div>';
+    }
     var head = n === 0
       ? '<h2 class="h-pixel">Unscheduled</h2>'
       : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>' + weatherHTML(n);
@@ -1126,7 +1153,7 @@
       + '<p class="mrow">' + avatar(d.created_by) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
       + (d.status === 'removed' && d.archive_reason ? '<p class="meta">' + esc(d.archive_reason) + '</p>' : '')
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
-      + (d.link ? '<div class="row"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a></div>' : '');
+      + (d.link ? '<div class="row linkrow"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a></div>' : '');
 
     if (d.status !== 'removed' && (mine || manage)) {
       h += '<div class="upl">'
@@ -1139,7 +1166,7 @@
     if (d.status === 'removed') {
       h += '<div class="row"><button class="btn primary" data-act="restore" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Restore</button></div>';
     } else {
-      h += '<div class="row">'
+      h += '<div class="row acts">'
         + '<button class="btn' + (voted ? ' on' : '') + '" data-act="vote" data-id="' + esc(d.id) + '"'
         + ' aria-pressed="' + (voted ? 'true' : 'false') + '"'
         + ' aria-label="' + (voted ? 'Remove your vote' : 'Vote for this') + '" title="' + (voted ? 'Voted' : 'Vote') + '">' + icon('up', 16) + (voted ? 'Upvoted' : 'Upvote') + ' <span class="num">' + v + '</span></button>'
@@ -1169,7 +1196,7 @@
     }
 
     var cs = commentsFor(d.id);
-    h += '<div><p class="meta">Comments</p>'
+    h += '<div class="cmts"><p class="meta">Comments</p>'
       + (cs.length ? cs.map(function (c) {
           var canDel = c.user_id === S.user.id || manage;
           return '<div class="cm">' + avatar(c.user_id) + '<span class="inf">' + esc(c.body) + '</span>'
