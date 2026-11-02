@@ -96,18 +96,26 @@ h2,h3{margin:0}
 .sc svg,.hero svg{width:100%; height:100%; display:block; shape-rendering:crispEdges}
 .inf{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; align-items:flex-start}
 .trip-row{align-items:flex-start; flex-direction:column; gap:2px}
-.bar{display:grid; grid-template-columns:repeat(10,1fr); gap:2px; width:100%; max-width:120px; margin-top:2px}
-.bar i{display:block; height:6px; background:var(--grid)}
-.bar i.on{background:var(--shell); border:1px solid var(--ink)}
 .av{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; flex:none;
   border:1px solid var(--ink); border-radius:4px; color:#16181D; font-family:var(--f-pixel); font-size:16px;
   -webkit-font-smoothing:none; line-height:1; vertical-align:middle; margin-right:6px}
 .av.former{border-style:dotted; opacity:.55}
 .ico{flex:none}
 .btn .ico{margin:0}
-.tag{font-size:11px; padding:1px 6px; border-radius:4px; border:1px solid var(--ink); display:inline-block}
+.tag{font-size:12px; line-height:16px; padding:2px 6px; border-radius:4px; border:1px solid var(--ink); display:inline-block}
 .tag.ok{background:var(--ink); color:var(--on-ink)}
-.tag.slot{border-style:dashed}
+.tag.slot,.tag.maybe{border-style:dashed}
+/* A card's second row: who on the left, chips after, votes on the right edge. */
+.mrow{display:flex; align-items:center; gap:8px; width:100%; min-width:0; margin:0}
+.mrow .av{margin-right:0}
+.votes{margin-left:auto; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600;
+  font-variant-numeric:tabular-nums}
+.votes.none{color:var(--muted); font-weight:400}
+.dim{color:var(--muted); font-weight:400}
+.chip{position:relative}
+.chip .n{position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:9px;
+  background:var(--shell); color:#16181D; border:1px solid var(--ink); font-size:11px; font-weight:600;
+  line-height:16px; text-align:center; font-variant-numeric:tabular-nums}
 .tag.booked{background:var(--shell); color:#16181D; border-color:#16181D}
 
 /* ===== Tabs ===== */
@@ -116,7 +124,7 @@ h2,h3{margin:0}
 .tabs button.on{color:var(--shell-deep); font-weight:600; box-shadow:inset 0 -3px 0 var(--shell)}
 
 /* ===== Day strip ===== */
-.daybar{display:flex; gap:6px; overflow-x:auto; padding:2px 16px 6px; margin:0 -16px; scrollbar-width:none}
+.daybar{display:flex; gap:8px; overflow-x:auto; padding:8px 16px 8px; margin:0 -16px; scrollbar-width:none}
 .daybar::-webkit-scrollbar{display:none}
 .chip{flex:none; min-width:52px; min-height:48px; border:1px solid var(--frame); border-radius:6px; background:var(--raised);
   font:inherit; font-size:12px; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2px 4px; color:var(--ink)}
@@ -157,7 +165,8 @@ h2,h3{margin:0}
 .grab{width:44px; height:6px; background:var(--frame); border-radius:3px}
 .sbody{display:flex; flex-direction:column; gap:12px}
 .hero{height:170px; border:1px solid var(--frame); border-radius:6px; overflow:hidden; background:#D7E6F5; position:relative}
-.hero img,.sc img{width:100%; height:100%; object-fit:cover; display:block}
+.sc{position:relative}
+.hero img,.sc img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
 .hero .credit{position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:2px 6px;
   background:rgba(22,24,29,.6); color:#F4F5F7}
 .upl{display:flex; gap:8px; align-items:center; flex-wrap:wrap}

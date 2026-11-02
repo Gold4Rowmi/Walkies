@@ -348,10 +348,14 @@
   function thumb(d) {
     var t = thumbUrl(d);
     if (!t) return sceneSVG(d.scene);
-    // Uploads from before the small file existed fall back to the big one.
+    // The drawing sits under the photo: it shows while the photo loads, and
+    // stays if the photo never does. Uploads from before the small file
+    // existed try the big one first.
     var full = photoUrl(d);
-    return '<img src="' + esc(t) + '" alt="" loading="lazy" decoding="async" width="52" height="52"'
-      + (full && full !== t ? ' onerror="this.onerror=null;this.src=\'' + esc(full) + '\'"' : '') + '>';
+    var fail = full && full !== t
+      ? 'if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.remove()}' : 'this.remove()';
+    return sceneSVG(d.scene) + '<img src="' + esc(t) + '" data-full="' + esc(full) + '" alt="" loading="lazy"'
+      + ' decoding="async" width="52" height="52" onerror="' + fail + '">';
   }
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
@@ -404,18 +408,18 @@
   function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
   function setErr(id, msg) { var el = document.getElementById(id); if (el) el.textContent = msg; else toast(msg, 'error'); }
   function check(r) { if (r.error) throw r.error; return r.data; }
-  function dayOpts(sel) {
-    var o = '<option value="0"' + (sel == 0 ? ' selected' : '') + '>Unscheduled</option>';
-    for (var n = 1; n <= plan().ndays; n++) o += '<option value="' + n + '"' + (sel == n ? ' selected' : '') + '>' + dayLabel(n) + ' (' + stopFor(n) + ')</option>';
+  // Only the days spent at that stop, so an idea in Kyoto can't land on a
+  // Tokyo day. A day outside the stop falls back to Unscheduled.
+  function dayOpts(sel, stop) {
+    var o = '<option value="0">Unscheduled</option>';
+    for (var n = 1; n <= plan().ndays; n++) {
+      if (stop && stopFor(n) !== stop) continue;
+      o += '<option value="' + n + '"' + (sel == n ? ' selected' : '') + '>' + dayLabel(n) + '</option>';
+    }
     return o;
   }
   function stopOpts(sel) {
     return stopNames().map(function (s) { return '<option' + (s === sel ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('');
-  }
-  function bars(n) {
-    var s = '<span class="bar">';
-    for (var k = 0; k < 10; k++) s += '<i class="' + (k < n ? 'on' : '') + '"></i>';
-    return s + '</span>';
   }
   function displayName() {
     var m = (S.user && S.user.user_metadata) || {};
@@ -618,18 +622,28 @@
     paintLock();
   }
 
+  // Votes as a paw and a number on the row's right edge, the way the vote
+  // button looks, so the eye finds them without reading.
+  function voteCount(id) {
+    var v = votesFor(id).length;
+    return '<span class="votes' + (v ? '' : ' none') + '" aria-label="' + v + ' vote' + (v === 1 ? '' : 's') + '">' + icon('paw', 12) + v + '</span>';
+  }
+  // A day someone hopes for is a dashed chip; no day shows nothing at all.
+  function maybeDay(d) {
+    return d.day && stopFor(d.day) === d.stop ? '<span class="tag maybe" title="Maybe ' + esc(dayLabel(d.day)) + '">Day ' + d.day + '</span>' : '';
+  }
+
   function ideaCard(d) {
-    var v = votesFor(d.id).length;
     return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '">'
       + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + avatar(d.created_by) + (d.day ? 'maybe day ' + d.day : 'any day') + ' · ' + v + ' vote' + (v === 1 ? '' : 's') + '</span>'
-      + bars(v) + '</span></button>';
+      + '<span class="mrow">' + avatar(d.created_by) + maybeDay(d) + voteCount(d.id) + '</span>'
+      + '</span></button>';
   }
 
   function ideasHTML() {
     var pool = S.data.ideas.filter(function (d) { return d.status === 'suggested'; });
-    var head = '<h2 class="h-pixel">' + esc(S.data.trip.name) + '</h2>';
+    var head = '<h2 class="h-pixel lg">' + esc(S.data.trip.name) + '</h2>';
     if (!pool.length) {
       return head + stateBlock('Nothing in the pool', 'Anyone can suggest a place. Paste a link and it lands here.',
         '<button class="btn primary" data-act="add-open"><span class="glyph">A</span>Suggest an idea</button>');
@@ -655,10 +669,12 @@
 
   function dayChip(n) {
     var planned = plannedOn(n).length;
-    var slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n; }).length;
-    var small = n === 0 ? planned + ' waiting' : planned ? planned + ' planned' : slots ? slots + ' slot' : stopFor(n);
-    return '<button class="chip' + (S.day === n ? ' on' : '') + (n === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + n + '">'
-      + '<span>' + (n || 'Open') + '</span><small>' + esc(small) + '</small></button>';
+    var count = planned;
+    var label = n === 0 ? 'Unscheduled' + (count ? ', ' + count + ' waiting' : '')
+      : dayLabel(n) + ', ' + stopFor(n) + (count ? ', ' + count + ' planned' : '');
+    return '<button class="chip' + (S.day === n ? ' on' : '') + (n === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + n + '" aria-label="' + esc(label) + '">'
+      + '<span>' + (n || 'Open') + '</span><small>' + esc(n ? stopFor(n) : 'no day') + '</small>'
+      + (count ? '<b class="n" aria-hidden="true">' + count + '</b>' : '') + '</button>';
   }
 
   function plannedCard(d) {
@@ -668,16 +684,15 @@
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
       + '<span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + avatar(d.created_by) + esc(d.stop) + ' · ' + esc(tzLabel(stopByName(d.stop).zone)) + '</span>'
-      + '<span class="row">' + tags + '</span></span></button>';
+      + '<span class="mrow">' + avatar(d.created_by) + tags + '</span></span></button>';
   }
 
   function slotCard(d) {
     var v = votesFor(d.id).length;
     return '<div class="card slot"><span class="sc">' + thumb(d) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
-      + '<span class="meta">' + avatar(d.created_by) + v + ' votes</span>'
-      + '<span class="row"><span class="tag slot">Slot suggested</span>'
+      + '<span class="mrow">' + avatar(d.created_by) + '<span class="tag slot">Slot suggested</span>' + voteCount(d.id) + '</span>'
+      + '<span class="row">'
       + '<button class="btn" data-act="take" data-id="' + esc(d.id) + '" data-day="' + d.day + '" data-dur="' + (d.duration_min || 60) + '">Take slot</button></span>'
       + '</span></div>';
   }
@@ -836,15 +851,17 @@
     if (!d) return '<p class="err">That idea is gone.</p>';
     var mine = d.created_by === S.user.id, manage = canManage();
     var v = votesFor(d.id).length, voted = iVoted(d.id);
+    // Who, where and what state, as an avatar and two chips rather than a sentence.
     var status = d.status === 'approved'
-      ? (d.day ? 'Planned on ' + dayLabel(d.day) + (d.start_time ? ' at ' + hhmm(d.start_time) : '') : 'Planned, no day yet')
-      : d.status === 'removed' ? 'In the archive' + (d.archive_reason ? ' · ' + d.archive_reason : '') : 'In the pool';
+      ? '<span class="tag ok">' + (d.day ? 'Day ' + d.day + (d.start_time ? ' ' + hhmm(d.start_time) : '') : 'Planned') + '</span>'
+      : d.status === 'removed' ? '<span class="tag">Archived</span>'
+      : maybeDay(d) || '<span class="tag maybe">In the pool</span>';
     var pu = photoUrl(d);
     var credit = !d.photo_path && d.auto_credit ? '<span class="credit">' + esc(d.auto_credit) + '</span>' : '';
-    var h = '<div class="hero">' + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '">' + credit : sceneSVG(d.scene, 'meet')) + '</div>'
+    var h = '<div class="hero">' + sceneSVG(d.scene, 'meet') + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '" onerror="this.remove()">' + credit : '') + '</div>'
       + '<h2 class="h-pixel lg">' + esc(d.title) + '</h2>'
-      + '<p class="meta">' + esc(d.stop) + ' · ' + esc(tzLabel(stopByName(d.stop).zone)) + ' · by ' + esc(nameOf(d.created_by)) + '</p>'
-      + '<p class="meta">' + esc(status) + '</p>'
+      + '<p class="mrow">' + avatar(d.created_by) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
+      + (d.status === 'removed' && d.archive_reason ? '<p class="meta">' + esc(d.archive_reason) + '</p>' : '')
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
       + (d.link ? '<a class="src" href="' + esc(d.link) + '" target="_blank" rel="noopener">Open ' + esc(srcName(d.link)) + ' ↗</a>' : '');
 
@@ -853,7 +870,7 @@
         + '<label class="btn" for="photoIn">' + icon('plus') + (pu ? 'Change photo' : 'Add a photo') + '</label>'
         + '<input type="file" id="photoIn" accept="image/*" data-id="' + esc(d.id) + '">'
         + (pu ? '<button class="btn" data-act="photo-clear" data-id="' + esc(d.id) + '">Remove photo</button>' : '')
-        + '</div><p class="meta" id="uplMsg">Your own photo. It shows on the card and here.</p>';
+        + '</div><p class="meta" id="uplMsg"></p>';
     }
 
     if (d.status === 'removed') {
@@ -866,8 +883,8 @@
         + ((mine || manage) ? '<button class="btn icon" data-act="edit-open" data-id="' + esc(d.id) + '" aria-label="Edit this" title="Edit">' + icon('pencil') + '</button>' : '')
         + '</div>'
         + '<div class="plan">'
-        + '<label class="lbl">Day<select id="dSel">' + dayOpts(d.day) + '</select></label>'
-        + '<label class="lbl">Time<input id="tIn" type="time" value="' + hhmm(d.start_time) + '"></label>'
+        + '<label class="lbl">Day<select id="dSel">' + dayOpts(d.day, d.stop) + '</select></label>'
+        + '<label class="lbl"><span>Time <span class="dim">' + esc(tzLabel(stopByName(d.stop).zone)) + '</span></span><input id="tIn" type="time" value="' + hhmm(d.start_time) + '"></label>'
         + '<label class="lbl">Min<input id="mIn" type="number" min="15" step="15" value="' + (d.duration_min || 60) + '"></label></div>'
         + '<div class="row"><button class="btn primary" data-act="plan" data-id="' + esc(d.id) + '"><span class="glyph">A</span>' + (d.status === 'approved' ? 'Save' : 'Plan it') + '</button></div>';
       if (d.status === 'approved') {
@@ -906,6 +923,7 @@
       + '<label class="lbl">Title<input id="eTitle" value="' + esc(d.title) + '"></label>'
       + '<label class="lbl">Link<input id="eLink" value="' + esc(d.link) + '"></label>'
       + '<label class="lbl">Stop<select id="eStop">' + stopOpts(d.stop) + '</select></label>'
+      + (d.day > 0 ? '<p class="meta">Moving it to another stop takes it off ' + dayLabel(d.day) + '.</p>' : '')
       + '<label class="lbl">Note<textarea id="eNote" rows="3">' + esc(d.note) + '</textarea></label>'
       + '<p class="err" id="eErr"></p>'
       + '<div class="row"><button class="btn primary" data-act="edit-save" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Save</button>'
@@ -919,7 +937,7 @@
       + '<div class="suggest" role="listbox"></div>'
       + '<label class="lbl">Type<select id="fKind"><option value="idea">Idea</option><option value="travel">Travel (flight or transfer)</option></select></label>'
       + '<label class="lbl">Stop<select id="fStop">' + stopOpts(stopFor(day || 1)) + '</select></label>'
-      + '<label class="lbl">' + (pre ? 'Day' : 'Maybe day') + '<select id="fDay">' + dayOpts(day || 0) + '</select></label>'
+      + '<label class="lbl">' + (pre ? 'Day' : 'Maybe day') + '<select id="fDay">' + dayOpts(day || 0, stopFor(day || 1)) + '</select></label>'
       + (pre ? '<div class="row"><label class="lbl">Time<input id="fTime" type="time"></label>'
         + '<label class="lbl">Min<input id="fDur" type="number" min="15" step="15" value="60"></label></div>' : '')
       + '<label class="lbl">Booking ref<input id="fRef" placeholder="Optional"></label>'
@@ -1489,6 +1507,15 @@
     showSuggestions(f);
     applyCity(f);
     if (f.dataset.suggest === 'place') askLive(f);
+  });
+
+  // A new stop brings its own days; keep the picked day only if it belongs.
+  app.addEventListener('change', function (ev) {
+    if (ev.target.id !== 'fStop') return;
+    var day = document.getElementById('fDay');
+    if (day) day.innerHTML = dayOpts(Number(day.value) || 0, ev.target.value);
+    var t = document.getElementById('fTitle');
+    if (t && t.value) showSuggestions(t);
   });
 
   app.addEventListener('change', function (ev) {

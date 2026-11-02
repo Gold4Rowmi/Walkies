@@ -107,6 +107,39 @@ async function ask(params: string) {
   return pages.sort((a, b) => (a.index as number) - (b.index as number));
 }
 
+// Found photos are copied into our own bucket rather than shown from
+// Wikimedia: iPhone Safari left hotlinked Wikimedia images blank in the
+// app, and the size the API hands back (960px, ~140KB) is far more than a
+// 52px card needs. 500px is one of Wikimedia's standard sizes and plenty
+// for the detail view. If copying fails for any reason, the Wikimedia
+// address is used as before, and the app shows the drawing if that fails.
+const SB = Deno.env.get('SUPABASE_URL') ?? '';
+const KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+async function keep(src: string): Promise<string> {
+  if (!SB || !KEY) return src;
+  try {
+    let img = await fetch(src.replace(/\/\d+px-/, '/500px-'), { headers: { 'user-agent': UA } });
+    if (!img.ok) img = await fetch(src, { headers: { 'user-agent': UA } });
+    const type = (img.headers.get('content-type') ?? '').split(';')[0];
+    if (!img.ok || !/^image\/(jpeg|png|webp|gif)$/.test(type)) return src;
+    const bytes = new Uint8Array(await img.arrayBuffer());
+    // Named by the source, so the same photo found twice is stored once.
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(src)));
+    const name = Array.from(digest, b => b.toString(16).padStart(2, '0')).join('');
+    const path = 'auto/' + name + '.' + type.split('/')[1].replace('jpeg', 'jpg');
+    const up = await fetch(SB + '/storage/v1/object/idea-photos/' + path, {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + KEY, apikey: KEY, 'content-type': type,
+        'x-upsert': 'true', 'cache-control': 'max-age=31536000' },
+      body: bytes,
+    });
+    if (!up.ok) return src;
+    return SB + '/storage/v1/object/public/idea-photos/' + path;
+  } catch {
+    return src;
+  }
+}
+
 async function findPhoto(title: string, stop: string) {
   for (const q of [title, title + ' ' + stop]) {
     const pages = await ask('prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=600'
@@ -116,7 +149,7 @@ async function findPhoto(title: string, stop: string) {
       const thumb = (p.thumbnail as { source?: string } | undefined)?.source;
       if (!thumb) continue;
       if (!exact(title, hitTitle) && !relevant(title, stop, hitTitle)) continue;
-      return { thumbnail: thumb, credit: hitTitle + ' · Wikipedia', page: String(p.fullurl ?? '') };
+      return { thumbnail: await keep(thumb), credit: hitTitle + ' · Wikipedia', page: String(p.fullurl ?? '') };
     }
   }
   return { thumbnail: '', credit: '', page: '' };
