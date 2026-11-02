@@ -408,7 +408,7 @@
     link:  ['........','....####','......##','.##..#.#','.#..#..#','.#.#....','.#......','.#####..'],
     close: ['........','.#....#.','..#..#..','...##...','...##...','..#..#..','.#....#.','........'],
     check: ['........','.......#','......##','.#...##.','.##.##..','..###...','...#....','........'],
-    paw:   ['........','.##..##.','.##..##.','........','..####..','.######.','.######.','..####..'],
+    up:    ['...##...','..####..','.######.','########','...##...','...##...','...##...','...##...'],
     pencil:['........','.....###','....###.','...###..','..###...','.###....','.##.....','........'],
     send:  ['........','....#...','....##..','.######.','.######.','....##..','....#...','........'],
     back:  ['........','...#....','..##....','.######.','.######.','..##....','...#....','........'],
@@ -695,7 +695,7 @@
   // button looks, so the eye finds them without reading.
   function voteCount(id) {
     var v = votesFor(id).length;
-    return '<span class="votes' + (v ? '' : ' none') + '" aria-label="' + v + ' vote' + (v === 1 ? '' : 's') + '">' + icon('paw', 12) + v + '</span>';
+    return '<span class="votes' + (v ? '' : ' none') + '" aria-label="' + v + ' vote' + (v === 1 ? '' : 's') + '">' + icon('up', 12) + v + '</span>';
   }
   // A day someone hopes for is a dashed chip; no day shows nothing at all.
   function maybeDay(d) {
@@ -949,8 +949,8 @@
       h += '<div class="row">'
         + '<button class="btn' + (voted ? ' on' : '') + '" data-act="vote" data-id="' + esc(d.id) + '"'
         + ' aria-pressed="' + (voted ? 'true' : 'false') + '"'
-        + ' aria-label="' + (voted ? 'Remove your vote' : 'Vote for this') + '" title="' + (voted ? 'Voted' : 'Vote') + '">' + icon('paw') + v + '</button>'
-        + ((mine || manage) ? '<button class="btn icon" data-act="edit-open" data-id="' + esc(d.id) + '" aria-label="Edit this" title="Edit">' + icon('pencil') + '</button>' : '')
+        + ' aria-label="' + (voted ? 'Remove your vote' : 'Vote for this') + '" title="' + (voted ? 'Voted' : 'Vote') + '">' + icon('up', 16) + (voted ? 'Upvoted' : 'Upvote') + ' <span class="num">' + v + '</span></button>'
+        + ((mine || manage) ? '<button class="btn" data-act="edit-open" data-id="' + esc(d.id) + '">' + icon('pencil', 16) + 'Edit</button>' : '')
         + '</div>'
         + '<div class="plan">'
         + '<label class="lbl">Day<select id="dSel"' + (d.status === 'suggested' ? ' data-maybe="' + esc(d.id) + '"' : '') + '>' + dayOpts(d.day, d.stop) + '</select></label>'
