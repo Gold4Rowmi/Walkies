@@ -329,6 +329,7 @@
     opt = opt || {};
     var t = document.getElementById('toast');
     if (!t || !msg) return;
+    if (kind === 'error') msg = plain(msg);
     var pose = kind === 'error' ? 'sad' : kind === 'success' ? 'happy' : kind === 'new' ? 'alert' : 'idle';
     document.getElementById('toastMsg').textContent = msg;
     // The toast is ink: dark in light mode, so he gets his ring there
@@ -405,10 +406,18 @@
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
   var ICONS = {
+    sun:   ['...#....','.#.#.#..','..###...','#######.','..###...','.#.#.#..','...#....','........'],
+    part:  ['#.#.....','.#......','#.#.##..','...####.','..######','.#######','........','........'],
+    cloud: ['........','...##...','..####..','.######.','########','########','........','........'],
+    rain:  ['...##...','..####..','.######.','########','........','.#..#..#','#..#..#.','........'],
+    storm: ['..####..','.######.','########','....#...','...#....','..####..','....#...','...#....'],
+    snow:  ['..####..','.######.','########','........','#.#.#.#.','.#.#.#.#','#.#.#.#.','........'],
+    fog:   ['........','######..','........','.#######','........','######..','........','.#######'],
     link:  ['........','....####','......##','.##..#.#','.#..#..#','.#.#....','.#......','.#####..'],
     close: ['........','.#....#.','..#..#..','...##...','...##...','..#..#..','.#....#.','........'],
     check: ['........','.......#','......##','.#...##.','.##.##..','..###...','...#....','........'],
     up:    ['...##...','..####..','.######.','########','...##...','...##...','...##...','...##...'],
+    down:  ['...##...','...##...','...##...','...##...','########','.######.','..####..','...##...'],
     pencil:['........','.....###','....###.','...###..','..###...','.###....','.##.....','........'],
     send:  ['........','....#...','....##..','.######.','.######.','....##..','....#...','........'],
     back:  ['........','...#....','..##....','.######.','.######.','..##....','...#....','........'],
@@ -452,7 +461,10 @@
   function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
   function mins(t) { if (!t) return null; var p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
   function val(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
-  function setErr(id, msg) { var el = document.getElementById(id); if (el) el.textContent = msg; else toast(msg, 'error'); }
+  // A dropped connection says so in plain words, wherever the error turns up
+  function isNetErr(e) { var m = String((e && e.message) || e || ''); return !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network/i.test(m); }
+  function plain(msg) { return isNetErr(msg) ? 'No signal, so that didn’t save. Try again when you’re back online.' : msg; }
+  function setErr(id, msg) { msg = plain(msg); var el = document.getElementById(id); if (el) el.textContent = msg; else toast(msg, 'error'); }
   function check(r) { if (r.error) throw r.error; return r.data; }
   // Only the days spent at that stop, so an idea in Kyoto can't land on a
   // Tokyo day. A day outside the stop falls back to Unscheduled.
@@ -489,8 +501,34 @@
   };
 
   // ---------- Data ----------
+  // ---------- Offline: the last plan we saw stays on this phone ----------
+  function keep(key, v) { try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), v: v })); } catch (e) {} }
+  function kept(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; } }
+  function goOffline(at) {
+    if (!S.offline) { S.offline = at || Date.now(); bark('whine'); }
+  }
+  function backOnline() {
+    if (!S.offline) return;
+    S.offline = null;
+    toast('Back online. The plan is up to date.', 'success');
+  }
+  function offlineBanner() {
+    if (!S.offline) return '';
+    var t = new Date(S.offline), hm = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+    return '<div class="banner"><div class="status warn"><span class="sq"></span><span class="txt"><b>No signal.</b> This is the plan as of '
+      + (t.toDateString() === new Date().toDateString() ? hm : t.getDate() + ' ' + MONTHS[t.getMonth()] + ' ' + hm)
+      + '. Changes need signal.</span><button class="btn" data-act="retry">Try now</button></div></div>';
+  }
+
   async function loadTrips() {
-    S.trips = check(await sb.from('trips').select('id,name,owner_id,created_at').order('created_at', { ascending: false })) || [];
+    try {
+      S.trips = check(await sb.from('trips').select('id,name,owner_id,created_at').order('created_at', { ascending: false })) || [];
+      keep('walkies_trips', S.trips);
+    } catch (e) {
+      var c = kept('walkies_trips');
+      if (!isNetErr(e) || !c) throw e;
+      S.trips = c.v; goOffline(c.at);
+    }
   }
   async function loadTrip(id) {
     var q = await Promise.all([
@@ -505,11 +543,14 @@
       sb.from('nearby_suggestions').select('*')
     ]);
     for (var i = 0; i < q.length; i++) if (q[i].error) throw q[i].error;
+    if (!q[0].data) throw new Error('That trip is gone.');
     S.data = {
       trip: q[0].data, ideas: q[1].data, votes: q[2].data, comments: q[3].data,
       members: q[4].data, activity: q[5].data, requests: q[6].data,
       hidden: q[7].data, nearby: q[8].data
     };
+    keep('walkies_trip_' + id, S.data);
+    backOnline();
     joinAlert();
   }
   // Someone asked to join: tell the people who can let them in, once per request
@@ -531,13 +572,18 @@
     if (!S.tripId || !S.data || S.sheet || document.visibilityState !== 'visible') return;
     var a = document.activeElement;
     if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
-    try { await loadTrip(S.tripId); render(); } catch (e) { /* offline or a blip: try again later */ }
+    try { await loadTrip(S.tripId); render(); } catch (e) { if (isNetErr(e) && !S.offline) { goOffline(Date.now()); render(); } }
   }
   setInterval(quietRefresh, 60000);
+  addEventListener('online', quietRefresh);
+  addEventListener('offline', function () { if (S.data) { goOffline(Date.now()); render(); } });
+
   document.addEventListener('visibilitychange', quietRefresh);
   async function refresh() {
     try { await loadTrip(S.tripId); }
     catch (e) {
+      var c = isNetErr(e) && kept('walkies_trip_' + S.tripId);
+      if (c) { S.data = c.v; goOffline(c.at); render(); return; }
       S.tripId = null; S.data = null; S.sheet = null;
       S.notice = 'That trip is gone, or you are no longer in it.';
       try { await loadTrips(); } catch (e2) {}
@@ -545,6 +591,7 @@
     render();
   }
   async function openTrip(id) {
+    try { localStorage.setItem('walkies_last_trip', id); } catch (e) {}
     S.tripId = id; S.data = null; S.sheet = null; S.adminShown = false; S.notice = '';
     S.tab = 'ideas'; S.day = todayDay(); S.loading = true;
     render();
@@ -552,6 +599,7 @@
     await refresh();
   }
   function backToTrips() {
+    try { localStorage.removeItem('walkies_last_trip'); } catch (e) {}
     S.tripId = null; S.data = null; S.sheet = null;
     loadTrips().catch(function () {}).then(render);
   }
@@ -669,7 +717,7 @@
         + '<span class="pixel" style="font-size:16px">' + esc(t.name) + '</span>'
         + '<span class="meta">' + (t.owner_id === S.user.id ? 'You own this' : 'Family trip') + '</span></button>';
     }).join('');
-    app.innerHTML = '<div class="screen">' + headerHTML()
+    app.innerHTML = '<div class="screen">' + headerHTML() + offlineBanner()
       + (S.notice ? '<p class="notice">' + esc(S.notice) + '</p>' : '')
       + '<div class="body">'
       + (list
@@ -706,6 +754,7 @@
       : ideasHTML();
     app.innerHTML = '<div class="screen">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
+      + offlineBanner()
       + '<div class="hub"><div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div></div>'
       + '<div class="body' + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '">' + body + '</div>'
       + actbarHTML(true)
@@ -713,7 +762,7 @@
       + '</div>';
     // An empty pool is a quiet screen: he dozes until there's something to look at
     S.lastTabAt = at;
-    setBase(S.tab === 'ideas' && !S.data.ideas.some(function (d) { return d.status === 'suggested'; }) ? 'sleepy' : 'idle');
+    setBase(S.offline ? 'sleepy' : S.tab === 'ideas' && !S.data.ideas.some(function (d) { return d.status === 'suggested'; }) ? 'sleepy' : 'idle');
     paintLock();
   }
 
@@ -812,16 +861,120 @@
     chips += '</div>';
     var head = n === 0
       ? '<h2 class="h-pixel">Unscheduled</h2>'
-      : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>';
+      : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>' + weatherHTML(n);
     var pre = n > 0 && isOwner() ? '<button class="btn" data-act="preset-open">Pre-set a slot</button>' : '';
     var planned = plannedOn(n), slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n; });
-    var items = planned.map(plannedCard).join('') + slots.map(slotCard).join('');
+    var items = planned.map(function (d, i) { return (i ? legHTML(planned[i - 1], d) : '') + plannedCard(d); }).join('') + slots.map(slotCard).join('');
     if (!items) {
       items = stateBlock(n === 0 ? 'Nothing waiting' : 'Nothing planned yet',
         n === 0 ? 'Ideas with no day land here.' : 'Open an idea and give it a time to put it on this day.',
         '<button class="btn" data-act="tab" data-tab="ideas">Go to the pool</button>');
     }
     return chips + head + pre + items + (n > 0 ? nearbyHTML(stopFor(n)) : '');
+  }
+
+  // ---------- Getting between plans: Google Routes, with your Maps key ----------
+  // Walk if it's a short walk; otherwise the train in Japan and a car (taxi or
+  // Grab) elsewhere. Places don't move, so an answer is kept for good on the
+  // phone, and a trip costs a few dozen lookups in all.
+  var LEGS = {}, routesOff = false;
+  function mins(t) { var p = hhmm(t).split(':'); return Number(p[0]) * 60 + Number(p[1]); }
+  function legHTML(a, b) {
+    if (!a.start_time || !b.start_time || a.kind === 'travel' || b.kind === 'travel' || routesOff || !CFG.MAPS_KEY) return '';
+    var from = a.title + ', ' + a.stop, to = b.title + ', ' + b.stop, key = 'leg_' + from + '>' + to;
+    var leg = LEGS[key] || (kept(key) || {}).v;
+    if (!leg && !LEGS[key] && navigator.onLine) fetchLeg(key, from, to, stopByName(b.stop).zone === 'Asia/Tokyo');
+    if (!leg || !leg.min) return '';
+    var gap = mins(b.start_time) - (mins(a.start_time) + (a.duration_min || 60));
+    var how = { WALK: 'on foot', TRANSIT: 'by train', DRIVE: 'by car' }[leg.mode];
+    if (gap < leg.min) {
+      return '<div class="status warn leg"><span class="sq"></span><span class="txt"><b>Tight.</b> ' + leg.min + ' min ' + how
+        + ', but only ' + Math.max(0, gap) + ' min between them.</span></div>';
+    }
+    return '<p class="leg">' + icon('down', 12) + leg.min + ' min ' + how + '</p>';
+  }
+  async function route(from, to, mode) {
+    var r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': CFG.MAPS_KEY, 'X-Goog-FieldMask': 'routes.duration' },
+      body: JSON.stringify({ origin: { address: from }, destination: { address: to }, travelMode: mode })
+    });
+    if (r.status === 403) { routesOff = true; throw new Error('Routes API is off for this key'); }
+    var j = await r.json(), d = j.routes && j.routes[0] && j.routes[0].duration;
+    return d ? Math.max(1, Math.round(parseInt(d, 10) / 60)) : null;
+  }
+  async function fetchLeg(key, from, to, japan) {
+    LEGS[key] = 'loading';
+    try {
+      var walk = await route(from, to, 'WALK'), leg;
+      if (walk != null && walk <= 20) leg = { min: walk, mode: 'WALK' };
+      else {
+        var ride = await route(from, to, japan ? 'TRANSIT' : 'DRIVE');
+        if (ride == null && japan) ride = await route(from, to, 'DRIVE'), japan = false;
+        leg = ride != null ? { min: ride, mode: japan ? 'TRANSIT' : 'DRIVE' } : walk != null ? { min: walk, mode: 'WALK' } : null;
+      }
+      if (!leg) throw new Error('no route');
+      LEGS[key] = leg; keep(key, leg);
+      if (S.data && S.tab === 'days') render();
+    } catch (e) { LEGS[key] = 'none'; }
+  }
+
+  // ---------- Weather: Open-Meteo, free and keyless ----------
+  // Within 16 days, the forecast for that day at that stop. Further out, the
+  // week around the same date last year, as "usually", so there's something
+  // to pack for. Kept on the phone (3 hours for a forecast, a month for
+  // "usually"), so it shows offline too.
+  var WX = {};
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function iso(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function wxIcon(code) {
+    return code === 0 ? 'sun' : code <= 2 ? 'part' : code === 3 ? 'cloud' : code <= 48 ? 'fog'
+      : code >= 95 ? 'storm' : (code >= 71 && code <= 77) || code === 85 || code === 86 ? 'snow' : 'rain';
+  }
+  function wxWord(code) {
+    return { sun: 'Clear', part: 'Some cloud', cloud: 'Cloudy', fog: 'Fog', storm: 'Storms', snow: 'Snow', rain: 'Rain' }[wxIcon(code)];
+  }
+  function weatherHTML(n) {
+    if (n < 1) return '';
+    var st = stopByName(stopFor(n));
+    if (st.lat == null) st = cityByName(st.name) || st;
+    if (st.lat == null) return '';
+    var day = dayDate(n), ahead = Math.round((day - new Date(iso(new Date()) + 'T00:00:00')) / 86400000);
+    if (ahead < 0) return '';
+    var key = 'wx_' + st.name + '_' + iso(day), fresh = kept(key), w = (WX[key] && WX[key].hi != null) ? WX[key] : (fresh || {}).v;
+    var stale = !fresh || Date.now() - fresh.at > (ahead <= 15 ? 3 * 3600e3 : 30 * 86400e3);
+    if (stale && !WX[key] && navigator.onLine) fetchWeather(key, st, day, ahead);   // once per session; a miss isn't retried every redraw
+    if (!w || w === 'loading' || w === 'none') return '';
+    return '<p class="wx">' + icon(wxIcon(w.code), 16) + '<span>'
+      + (w.usual ? '<span title="The same week last year">Usually</span> ' : wxWord(w.code) + ' · ')
+      + '<b class="num">' + Math.round(w.hi) + '°</b> / ' + Math.round(w.lo) + '°'
+      + (w.usual ? ' · rain ' + w.wet + ' days in 7' : w.rain != null ? ' · rain ' + w.rain + '%' : '')
+      + '</span></p>';
+  }
+  async function fetchWeather(key, st, day, ahead) {
+    WX[key] = 'loading';
+    var at = 'latitude=' + st.lat + '&longitude=' + st.lng + '&timezone=auto';
+    try {
+      var w;
+      if (ahead <= 15) {
+        var f = await (await fetch('https://api.open-meteo.com/v1/forecast?' + at + '&start_date=' + iso(day) + '&end_date=' + iso(day)
+          + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max')).json();
+        var d = f.daily;
+        w = { code: d.weather_code[0], hi: d.temperature_2m_max[0], lo: d.temperature_2m_min[0], rain: d.precipitation_probability_max[0] };
+      } else {
+        var a = new Date(day); a.setFullYear(a.getFullYear() - 1); a.setDate(a.getDate() - 3);
+        var b = new Date(a); b.setDate(b.getDate() + 6);
+        var h = await (await fetch('https://archive-api.open-meteo.com/v1/archive?' + at + '&start_date=' + iso(a) + '&end_date=' + iso(b)
+          + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum')).json();
+        var x = h.daily, avg = function (arr) { return arr.reduce(function (p, c) { return p + c; }, 0) / arr.length; };
+        var codes = x.weather_code.map(wxIcon), top = codes.sort(function (p, q) { return codes.filter(function (c) { return c === q; }).length - codes.filter(function (c) { return c === p; }).length; })[0];
+        w = { usual: true, code: { sun: 0, part: 2, cloud: 3, fog: 45, storm: 95, snow: 71, rain: 61 }[top],
+          hi: avg(x.temperature_2m_max), lo: avg(x.temperature_2m_min), wet: x.precipitation_sum.filter(function (r) { return r >= 1; }).length };
+      }
+      if (w.hi == null || isNaN(w.hi)) throw new Error('no weather');
+      WX[key] = w; keep(key, w);
+      if (S.data) render();
+    } catch (e) { WX[key] = 'none'; }
   }
 
   // Now: the day as a line Rommel walks down, stopping where you are.
@@ -837,7 +990,7 @@
       + '<br><span class="meta">' + esc(stop) + ' · '
       + (running ? 'now ' + clock + ' ' + tzLabel(zone)
          : started ? 'the trip has moved on' : 'the trip has not started')
-      + '</span></h2>';
+      + '</span></h2>' + weatherHTML(n);
 
     if (!items.length) {
       return head + stateBlock('Nothing with a time', 'Give an idea a time and it turns up here on the day.',
@@ -1107,8 +1260,9 @@
       + '<hr class="hair"><span class="label">Appearance</span>'
       + '<div class="seg" role="group" aria-label="Theme">' + seg + '</div>'
       + (S.tripId ? '<hr class="hair"><span class="label">Notifications</span>'
-          + '<div class="row"><button class="btn" type="button" id="pushBtn" data-act="push">Turn on notifications</button></div>'
-          + '<p class="meta" id="pushHelp"></p>' : '')
+          + '<div class="row"><button class="btn" type="button" id="pushBtn" data-act="push">Turn on notifications</button>'
+          + '<button class="btn" type="button" id="briefBtn" data-act="test-brief" hidden>Send me a test brief</button></div>'
+          + '<p class="meta" id="pushHelp">Each morning at 7 where you are: the day’s plans and weather.</p>' : '')
       + '<hr class="hair"><span class="label">Account</span>'
       + '<p class="meta">Signed in as ' + esc((S.user && S.user.email) || displayName()) + '</p>'
       + '<div class="row"><button class="btn" type="button" data-act="signout" data-sfx="back">Sign out</button></div>'
@@ -1197,6 +1351,11 @@
     await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
   };
   H.signout = async function () { await sb.auth.signOut(); };
+  H.retry = async function () {
+    if (!S.tripId) { await loadTrips(); return render(); }
+    try { await loadTrip(S.tripId); render(); }
+    catch (e) { toast('Still no signal. Walkies will check again by itself.', 'error'); }
+  };
   H.about = function () {
     paintLock();
     document.getElementById('about').showModal();
@@ -1642,7 +1801,18 @@
     var sub = await reg.pushManager.getSubscription();
     btn.disabled = false;
     btn.textContent = sub ? 'Notifications are on' : 'Turn on notifications';
+    var tb = document.getElementById('briefBtn');
+    if (tb) tb.hidden = !sub;
   }
+  H['test-brief'] = async function () {
+    var r = await sb.functions.invoke('brief', { body: { test: true, trip_id: S.tripId } });
+    if (r.error) {
+      var msg = 'Couldn’t send it.';
+      try { msg = (await r.error.context.json()).error || msg; } catch (e) {}
+      return toast(msg, 'error');
+    }
+    toast('Sent. It should arrive in a few seconds.', 'success');
+  };
   H.push = async function () {
     if (!pushSupported() || !S.tripId) return;
     var perm = await Notification.requestPermission();
@@ -1841,10 +2011,17 @@
   // ---------- Start ----------
   async function onSession(user) {
     if (S.user && user && S.user.id === user.id) return;
+    // No signal can also mean the sign-in couldn't be renewed: show the saved plan rather than a sign-in screen
+    var last = kept('walkies_user');
+    if (!user && !navigator.onLine && last) { user = last.v; goOffline(last.at); }
     S.user = user || null;
     if (!S.user) { S.trips = []; S.tripId = null; S.data = null; return renderSignIn(); }
+    keep('walkies_user', { id: S.user.id, email: S.user.email, user_metadata: S.user.user_metadata });
     await processPendingJoin();
     try { await loadTrips(); } catch (e) { S.notice = e.message; }
+    // Straight back into the trip you were last in
+    var last = null; try { last = localStorage.getItem('walkies_last_trip'); } catch (e) {}
+    if (last && !S.tripId && S.trips.some(function (t) { return t.id === last; })) return openTrip(last);
     render();
   }
   async function processPendingJoin() {
