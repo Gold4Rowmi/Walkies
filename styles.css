@@ -34,11 +34,11 @@ svg.px{display:block; shape-rendering:crispEdges}
 .screen{width:100%; max-width:440px; min-height:100vh; min-height:100dvh; background:var(--paper); display:flex; flex-direction:column;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:16px 16px; padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
-.screen.center{align-items:center; justify-content:center; text-align:center; gap:14px; padding:24px 16px}
+.screen.center{align-items:center; justify-content:center; text-align:center; gap:16px; padding:24px 16px}
 
 /* ===== Header: app is the hero, Rommel is the signature ===== */
 .head{position:sticky; top:0; z-index:20; background:var(--shell); color:var(--head-ink);
-  border-bottom:2px solid var(--head-ink); padding:0 12px; min-height:64px; display:flex; align-items:center; gap:10px}
+  border-bottom:2px solid var(--head-ink); padding:0 12px; min-height:64px; display:flex; align-items:center; gap:8px}
 .head .appname{font-size:32px; line-height:1}
 .head .sub{font-size:12px; color:var(--head-ink); opacity:.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; display:block}
 .head .titles{min-width:0; display:flex; flex-direction:column}
@@ -47,8 +47,8 @@ svg.px{display:block; shape-rendering:crispEdges}
 .dogbtn{background:none; border:0; padding:0; cursor:pointer; flex:none; min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center}
 .adminbar{background:var(--ink); color:var(--on-ink); font-size:12px; padding:5px 16px}
 
-.body{padding:12px 16px 20px; display:flex; flex-direction:column; gap:10px; flex:1}
-.stack{display:flex; flex-direction:column; gap:10px; padding:0 16px; width:100%}
+.body{padding:12px 16px 20px; display:flex; flex-direction:column; gap:12px; flex:1}
+.stack{display:flex; flex-direction:column; gap:12px; padding:0 16px; width:100%}
 h2,h3{margin:0}
 .ttl{font-weight:600; font-size:15px; display:block; min-width:0}
 .ttl.clip{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
@@ -59,12 +59,13 @@ h2,h3{margin:0}
 
 /* ===== Buttons ===== */
 .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; min-width:44px;
-  padding:0 14px; border-radius:6px; border:1px solid var(--frame); background:var(--raised); color:var(--ink);
+  padding:0 12px; border-radius:6px; border:1px solid var(--frame); background:var(--raised); color:var(--ink);
   box-shadow:0 2px 0 var(--frame); font:inherit; font-size:14px; cursor:pointer; text-decoration:none; white-space:nowrap;
   transition:transform .16s var(--spring), box-shadow .1s}
 .btn:active{transform:translateY(2px) scale(.97); box-shadow:none; transition-duration:.08s}
 .btn:disabled{color:var(--muted); background:var(--sunken); box-shadow:none; cursor:default; transform:none}
 .btn.primary{background:var(--ink); color:var(--on-ink); border-color:var(--ink); box-shadow:0 2px 0 var(--drop)}
+.btn.on{background:var(--shell); color:#16181D; border-color:var(--ink); box-shadow:0 2px 0 var(--ink)}
 .btn.danger{background:var(--danger); color:var(--on-danger); border-color:var(--danger); box-shadow:0 2px 0 var(--frame)}
 .btn.icon{width:44px; padding:0}
 .btn.wide{width:100%}
@@ -74,9 +75,20 @@ h2,h3{margin:0}
 .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .row>input,.row>select{flex:1; min-width:120px}
 
+@media (hover: hover) {
+  .btn:hover:not(:disabled){ background:var(--sunken); border-color:var(--ink) }
+  .btn.primary:hover:not(:disabled){ background:var(--soft) }
+  .btn.danger:hover:not(:disabled){ filter:brightness(1.1) }
+  .btn.on:hover{ filter:brightness(1.05) }
+  .card:hover{ border-color:var(--ink) }
+  .chip:hover:not(.on){ border-color:var(--ink) }
+  .tabs button:hover:not(.on){ color:var(--ink) }
+  .dogbtn:hover{ filter:brightness(1.08) }
+}
+
 /* ===== Cards ===== */
-.card{display:flex; gap:10px; align-items:center; width:100%; text-align:left; font:inherit; font-size:15px; color:var(--ink);
-  background:var(--raised); border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px; padding:10px; cursor:pointer}
+.card{display:flex; gap:12px; align-items:center; width:100%; text-align:left; font:inherit; font-size:15px; color:var(--ink);
+  background:var(--raised); border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px; padding:12px; cursor:pointer}
 .card.static{cursor:default}
 .card.slot{border:1px dashed var(--ink); box-shadow:none; background:var(--sunken)}
 .card.travel{border-left:4px solid var(--ink)}
@@ -114,7 +126,7 @@ h2,h3{margin:0}
 .chip.today{border-color:var(--shell); border-width:2px}
 
 /* ===== Now: the day as a timeline Rommel walks down ===== */
-.tl{display:grid; grid-template-columns:52px 1fr; gap:10px; align-items:center;
+.tl{display:grid; grid-template-columns:52px 1fr; gap:12px; align-items:center;
   background:linear-gradient(var(--frame),var(--frame)) no-repeat 25px 0; background-size:2px 100%}
 .tl-rail{display:flex; align-items:center; justify-content:center}
 .tl-rail svg{background:var(--paper); padding:2px; border-radius:4px}
@@ -129,7 +141,7 @@ h2,h3{margin:0}
 #mapbox{height:320px; border:1px solid var(--frame); box-shadow:0 2px 0 var(--frame); border-radius:6px; overflow:hidden; background:var(--sunken)}
 
 /* ===== States: Rommel carries them ===== */
-.state{display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; padding:28px 16px; color:var(--muted)}
+.state{display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:28px 16px; color:var(--muted)}
 .state b{font-family:var(--f-pixel); font-weight:400; font-size:16px; color:var(--ink); -webkit-font-smoothing:none}
 .launchbar{display:grid; grid-template-columns:repeat(10,12px); gap:4px}
 .launchbar i{display:block; height:10px; background:var(--grid)}
@@ -142,16 +154,16 @@ h2,h3{margin:0}
 @keyframes sheetup{from{transform:translateY(40px)} to{transform:none}}
 .sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--raised); padding:6px 0 8px; z-index:1}
 .grab{width:44px; height:6px; background:var(--frame); border-radius:3px}
-.sbody{display:flex; flex-direction:column; gap:10px}
+.sbody{display:flex; flex-direction:column; gap:12px}
 .hero{height:170px; border:1px solid var(--frame); border-radius:6px; overflow:hidden; background:#D7E6F5; position:relative}
 .hero img,.sc img{width:100%; height:100%; object-fit:cover; display:block}
 .hero .credit{position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:2px 6px;
   background:rgba(22,24,29,.6); color:#F4F5F7}
 .upl{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
 .upl input[type=file]{display:none}
-.note{background:var(--sunken); border:1px solid var(--frame); border-radius:6px; padding:8px 10px; font-size:14px}
+.note{background:var(--sunken); border:1px solid var(--frame); border-radius:6px; padding:8px 12px; font-size:14px}
 .note.code{word-break:break-all; font-size:12px}
-.src{font-size:14px; color:var(--blue)}
+.src{font-size:14px; color:var(--blue); display:inline-flex; align-items:center; min-height:44px}
 .plan{display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end}
 .plan .lbl{flex:0 0 auto}
 .plan .lbl:first-child{flex:1 1 100%}
@@ -159,17 +171,17 @@ h2,h3{margin:0}
 .plan input[type=number]{width:92px}
 .cm{font-size:14px; border-top:1px solid var(--frame); padding:8px 0; display:flex; gap:0; align-items:center}
 .cm .inf{gap:0}
-.sugg{border:1px dashed var(--frame); border-radius:6px; padding:10px; background:var(--sunken); display:flex; flex-direction:column; gap:8px}
+.sugg{border:1px dashed var(--frame); border-radius:6px; padding:12px; background:var(--sunken); display:flex; flex-direction:column; gap:8px}
 .nearby{display:flex; flex-direction:column; gap:6px; padding-bottom:8px; border-bottom:1px solid var(--frame)}
 .nearby:last-child{border-bottom:0; padding-bottom:0}
 .log{font-size:12px; color:var(--muted); border-top:1px solid var(--frame); padding:4px 0}
 .empty{font-size:14px; color:var(--muted); text-align:center; padding:18px 0; margin:0}
 .err{color:var(--danger); font-size:13px; min-height:16px; margin:0}
-.notice{font-size:14px; background:var(--raised); border:1px solid var(--frame); border-radius:6px; padding:8px 10px; margin:10px 16px 0}
+.notice{font-size:14px; background:var(--raised); border:1px solid var(--frame); border-radius:6px; padding:8px 12px; margin:12px 16px 0}
 
 /* ===== Forms ===== */
 .lbl{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
-input,select,textarea{font:inherit; font-size:16px; min-height:44px; padding:8px 10px; border:1px solid var(--frame);
+input,select,textarea{font:inherit; font-size:16px; min-height:44px; padding:8px 12px; border:1px solid var(--frame);
   border-radius:6px; background:var(--raised); color:var(--ink); width:100%; min-width:0}
 input[type=checkbox]{width:auto; min-height:0; accent-color:var(--blue)}
 input[type=time],input[type=number]{width:auto}
@@ -177,7 +189,7 @@ input[type=time],input[type=number]{width:auto}
 
 /* ===== Toast ===== */
 .toast{position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translate(-50%,140px);
-  background:var(--ink); color:var(--on-ink); padding:10px 14px; border-radius:6px; font-size:14px; z-index:60;
+  background:var(--ink); color:var(--on-ink); padding:12px 16px; border-radius:6px; font-size:14px; z-index:60;
   transition:transform .24s var(--spring); max-width:calc(100% - 32px)}
 .toast:empty{visibility:hidden}
 .toast.show{transform:translate(-50%,0)}

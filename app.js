@@ -53,6 +53,17 @@
   var SOCIAL_RE = /^https?:\/\/([a-z0-9-]+\.)*(tiktok\.com|instagram\.com|instagr\.am|jal\.co\.jp|ana\.co\.jp|vietjetair\.com|vietnamairlines\.com)(\/|$)/i;
   var MAPS_RE = /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|([a-z0-9-]+\.)*google\.[a-z.]{2,6}\/maps|maps\.google\.[a-z.]{2,6})/i;
   function validLink(u) { return SOCIAL_RE.test(u || '') || MAPS_RE.test(u || ''); }
+
+  // The iPhone share sheet hands over "Look at this https://vt.tiktok.com/x",
+  // and people type hosts with no scheme. Take the link out of whatever arrives.
+  var BARE_HOST = /^((?:[a-z0-9-]+\.)*(?:tiktok\.com|instagram\.com|instagr\.am|goo\.gl|google\.[a-z.]{2,6}|jal\.co\.jp|ana\.co\.jp|vietjetair\.com|vietnamairlines\.com)\b\S*)$/i;
+  function cleanLink(raw) {
+    var t = String(raw == null ? '' : raw).trim();
+    var m = t.match(/https?:\/\/\S+/i);
+    if (m) return m[0].replace(/[.,;:)\]]+$/, '');
+    var bare = t.match(BARE_HOST);
+    return bare ? 'https://' + bare[1] : t;
+  }
   function srcName(u) {
     return /instagram/i.test(u) ? 'Instagram' : /tiktok/i.test(u) ? 'TikTok' : /maps|goo\.gl/i.test(u) ? 'Google Maps' : 'Booking page';
   }
@@ -701,7 +712,8 @@
       h += '<div class="row"><button class="btn primary" data-act="restore" data-id="' + esc(d.id) + '"><span class="glyph">A</span>Restore</button></div>';
     } else {
       h += '<div class="row">'
-        + '<button class="btn' + (voted ? ' primary' : '') + '" data-act="vote" data-id="' + esc(d.id) + '"'
+        + '<button class="btn' + (voted ? ' on' : '') + '" data-act="vote" data-id="' + esc(d.id) + '"'
+        + ' aria-pressed="' + (voted ? 'true' : 'false') + '"'
         + ' aria-label="' + (voted ? 'Remove your vote' : 'Vote for this') + '" title="' + (voted ? 'Voted' : 'Vote') + '">' + icon('paw') + v + '</button>'
         + ((mine || manage) ? '<button class="btn icon" data-act="edit-open" data-id="' + esc(d.id) + '" aria-label="Edit this" title="Edit">' + icon('pencil') + '</button>' : '')
         + '</div>'
@@ -864,7 +876,7 @@
 
   H['add-submit'] = async function (el) {
     var pre = el.dataset.pre === '1';
-    var link = val('fLink'), title = val('fTitle'), kind = val('fKind') || 'idea';
+    var link = cleanLink(val('fLink')), title = val('fTitle'), kind = val('fKind') || 'idea';
     if (!link) return setErr('fErr', 'Paste a link first.');
     if (!validLink(link)) return setErr('fErr', 'We can’t read that link. Use a Google Maps, Instagram, TikTok or airline link.');
     if (!title) return setErr('fErr', 'Give it a title.');
@@ -886,7 +898,7 @@
   };
 
   H['edit-save'] = async function (el) {
-    var title = val('eTitle'), link = val('eLink');
+    var title = val('eTitle'), link = cleanLink(val('eLink'));
     if (!title) return setErr('eErr', 'Give it a title.');
     if (link && !validLink(link)) return setErr('eErr', 'We can’t read that link. Use a Google Maps, Instagram, TikTok or airline link.');
     var r = await sb.rpc('update_idea', { p_idea: el.dataset.id, p_title: title, p_stop: val('eStop'), p_link: link, p_note: val('eNote') });
@@ -897,10 +909,21 @@
   };
 
   H.vote = async function (el) {
-    var id = el.dataset.id;
-    if (iVoted(id)) check(await sb.from('votes').delete().eq('idea_id', id).eq('user_id', S.user.id));
-    else { check(await sb.from('votes').insert({ idea_id: id, user_id: S.user.id })); react('happy', 600); }
-    await refresh();
+    var id = el.dataset.id, had = iVoted(id);
+    var mine = function (v) { return v.idea_id === id && v.user_id === S.user.id; };
+    // Show it immediately. A vote is safe to undo, and the wait is the annoying part.
+    if (had) S.data.votes = S.data.votes.filter(function (v) { return !mine(v); });
+    else { S.data.votes.push({ idea_id: id, user_id: S.user.id }); react('happy', 600); }
+    render();
+    var r = had
+      ? await sb.from('votes').delete().eq('idea_id', id).eq('user_id', S.user.id)
+      : await sb.from('votes').insert({ idea_id: id, user_id: S.user.id });
+    if (r.error) {
+      if (had) S.data.votes.push({ idea_id: id, user_id: S.user.id });
+      else S.data.votes = S.data.votes.filter(function (v) { return !mine(v); });
+      toast(r.error.message, 'error');
+      render();
+    }
   };
 
   H.plan = async function (el) {
@@ -1160,12 +1183,17 @@
 
   app.addEventListener('click', function (ev) {
     var el = ev.target.closest('[data-act]');
-    if (!el || el.disabled) return;
+    if (!el || el.disabled || el.dataset.busy) return;
     var fn = H[el.dataset.act];
     if (!fn) return;
-    Promise.resolve().then(function () { return fn(el, ev); }).catch(function (e) {
-      toast((e && e.message) || 'Something went wrong. Try again.', 'error');
-    });
+    // Abroad, on hotel wifi, a save can take seconds with nothing to show for it.
+    // Hold the button down for the duration so nobody taps it three times.
+    var lock = el.tagName === 'BUTTON';
+    if (lock) { el.dataset.busy = '1'; el.disabled = true; }
+    Promise.resolve()
+      .then(function () { return fn(el, ev); })
+      .catch(function (e) { toast((e && e.message) || 'Something went wrong. Try again.', 'error'); })
+      .then(function () { if (lock) { el.disabled = false; delete el.dataset.busy; } });
   });
   document.getElementById('pushBtn').addEventListener('click', function () { H.push(); });
   document.getElementById('themeBtn').addEventListener('click', function () { H.theme(); });
