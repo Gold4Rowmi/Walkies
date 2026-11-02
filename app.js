@@ -766,15 +766,16 @@
       : S.tab === 'archive' ? archiveHTML()
       : S.tab === 'trip' ? tripSheet()
       : ideasHTML();
-    app.innerHTML = '<div class="screen trip">' + headerHTML()
+    var side = S.sheet ? sheetHTML() : S.tab === 'ideas' || S.tab === 'days' ? sideEmpty() : '';
+    app.innerHTML = '<div class="screen trip' + (side ? '' : ' no-side') + '">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
       + offlineBanner() + installBanner()
-      + '<div class="hub">' + (WIDE.matches ? '<span class="label hub-trip">' + esc(S.data.trip.name) + '</span>' : '')
+      + '<div class="hub">'
       + '<div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div>'
       + (WIDE.matches && S.tab === 'days' ? dayRail() : '') + '</div>'
       + '<div class="body t-' + S.tab + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '" data-key="' + S.tab + (S.tab === 'days' ? S.day : '') + '">' + body + '</div>'
       + actbarHTML(true)
-      + (S.sheet ? sheetHTML() : sideEmpty())
+      + side
       + '</div>';
     // An empty pool is a quiet screen: he dozes until there's something to look at
     S.lastTabAt = at;
@@ -797,6 +798,8 @@
   // came from keeps the four blue corner brackets, so you can see which one it is.
   function picked(d) { return S.sheet && S.sheet.id === d.id ? ' aria-selected="true"' : ''; }
   function sideEmpty() {
+    var near = S.tab === 'days' && S.day > 0 ? nearbyHTML(stopFor(S.day)) : '';
+    if (WIDE.matches && near) return '<aside class="side-empty side-near"><span class="label">Nearby in ' + esc(stopFor(S.day)) + '</span>' + near + '</aside>';
     return '<aside class="side-empty" aria-hidden="true"><div class="state">' + dogSVG('sleepy', 60)
       + '<b>Nothing open</b><span>Pick an idea or a plan and it opens here.</span></div></aside>';
   }
@@ -909,7 +912,7 @@
         n === 0 ? 'Ideas with no day land here.' : 'Open an idea and give it a time to put it on this day.',
         '<button class="btn" data-act="tab" data-tab="ideas">Go to the pool</button>');
     }
-    return chips + head + pre + items + (n > 0 ? nearbyHTML(stopFor(n)) : '');
+    return chips + '<div class="dayhead">' + head + pre + '</div>' + items + (n > 0 && !WIDE.matches ? nearbyHTML(stopFor(n)) : '');
   }
 
   // ---------- Getting between plans: Google Routes, with your Maps key ----------
@@ -1223,6 +1226,7 @@
   function addSheet(pre, day) {
     return '<h2 class="h-pixel lg">' + (pre ? 'Pre-set a slot' : 'Add to the trip') + '</h2>'
       + '<label class="lbl">Link<input id="fLink" placeholder="Google Maps, Instagram, TikTok or airline link"></label>'
+      + '<p class="meta" id="fLinkMsg" aria-live="polite"></p>'
       + '<label class="lbl">Title<input id="fTitle" data-suggest="place" autocomplete="off" placeholder="Name it"></label>'
       + '<div class="suggest" role="listbox"></div>'
       + '<label class="lbl">Type<select id="fKind"><option value="idea">Idea</option><option value="travel">Travel (flight or transfer)</option></select></label>'
@@ -2030,6 +2034,46 @@
     toast(day ? 'Moved to maybe ' + dayLabel(day) + '.' : 'Moved to any day.', 'success');
     await refresh();
   });
+
+  // A pasted Google Maps link fills in the name and the nearest stop. Only a
+  // title the person hasn't typed themselves is ever replaced.
+  var linkTimer = null;
+  function km(a, b) {
+    var r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) * r / 2), y = (b.lat - a.lat) * r;
+    return Math.sqrt(x * x + y * y) * 6371;
+  }
+  app.addEventListener('input', function (ev) {
+    if (ev.target.id !== 'fLink') return;
+    clearTimeout(linkTimer);
+    var link = cleanLink(ev.target.value), msg = document.getElementById('fLinkMsg');
+    if (!MAPS_RE.test(link)) { if (msg) msg.textContent = ''; return; }
+    if (msg) msg.textContent = 'Reading the link…';
+    linkTimer = setTimeout(async function () {
+      var r = null;
+      try { r = await sb.functions.invoke('preview', { body: { resolve: link } }); } catch (e) {}
+      if (cleanLink((document.getElementById('fLink') || {}).value) !== link) return;   // they've moved on
+      var d = r && !r.error && r.data, t = document.getElementById('fTitle'), sel = document.getElementById('fStop');
+      if (!d || !d.title) { if (msg) msg.textContent = 'Couldn’t read a place name from that link. Type the title below.'; return; }
+      if (t && (!t.value || t.dataset.auto)) { t.value = d.title; t.dataset.auto = '1'; }
+      var note = 'From Google Maps: ' + d.title;
+      if (sel && d.lat != null) {
+        var best = null;
+        stopNames().forEach(function (n) {
+          var st = stopByName(n); if (st.lat == null) st = cityByName(n) || st;
+          if (st.lat == null) return;
+          var dist = km({ lat: d.lat, lng: d.lng }, st);
+          if (!best || dist < best.dist) best = { name: n, dist: dist };
+        });
+        if (best && best.dist <= 150) {
+          if (sel.value !== best.name) { sel.value = best.name; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+          note += ', near ' + best.name;
+        } else if (best) note += '. It isn’t near any stop on the trip, so check the stop.';
+      }
+      if (msg) msg.textContent = note + '.';
+      SFX.tick && SFX.tick();
+    }, 350);
+  });
+  app.addEventListener('input', function (ev) { if (ev.target.id === 'fTitle') delete ev.target.dataset.auto; });
 
   // A new stop brings its own days; keep the picked day only if it belongs.
   app.addEventListener('change', function (ev) {

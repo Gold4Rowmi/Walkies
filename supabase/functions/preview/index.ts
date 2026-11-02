@@ -3,6 +3,12 @@
 //   { title, stop, kind }  -> a picture of the place
 //   { geocode: "Hoi An" }  -> { lat, lng } for its map pin
 //   { suggest, stop, lat, lng } -> place names for the title box
+//   { resolve: link }      -> { title, lat, lng } read from a Google Maps link
+//
+// Google share links (maps.app.goo.gl) answer a plain request with a
+// redirect to the full place address, which carries the name and the pin
+// (re-measured 2026-11-03; a browser-like request gets a JS page instead).
+// Only Google's own short-link hosts are ever fetched.
 //
 // Why not the obvious sources (all measured 2026-11-02):
 //   TikTok oEmbed answers 200 but no longer returns thumbnail_url.
@@ -199,11 +205,35 @@ async function suggest(typed: string, stop: string, lat: unknown, lng: unknown) 
   return { places };
 }
 
+const SHORT = /^https:\/\/(maps\.app\.goo\.gl|goo\.gl)\//i;
+const LONG = /^https:\/\/((www|maps)\.)?google\.[a-z.]{2,6}\/maps/i;
+async function resolveLink(link: string) {
+  let u = link.trim();
+  for (let i = 0; i < 4 && SHORT.test(u); i++) {
+    const r = await fetch(u, { redirect: 'manual', headers: { 'user-agent': 'curl/8.5.0' } });
+    const next = r.headers.get('location');
+    await r.body?.cancel();
+    if (!next) break;
+    u = new URL(next, u).href;
+  }
+  const none = { title: '', lat: null as number | null, lng: null as number | null };
+  if (!LONG.test(u)) return none;
+  const url = new URL(u);
+  const place = url.pathname.match(/\/maps\/place\/([^/]+)/);
+  const pin = u.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/) || u.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  const q = url.searchParams.get('q') || url.searchParams.get('query') || '';
+  let title = place ? decodeURIComponent(place[1].replace(/\+/g, ' ')) : q;
+  if (/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(title)) title = '';   // a dropped pin has no name
+  const ll = pin ? [Number(pin[1]), Number(pin[2])] : q.match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/)?.slice(1).map(Number);
+  return { title: title.slice(0, 120), lat: ll ? ll[0] : null, lng: ll ? ll[1] : null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   let body: Record<string, unknown> = {};
   try { body = (await req.json()) ?? {}; } catch { /* no body */ }
   try {
+    if (body.resolve) return json(await resolveLink(String(body.resolve)));
     if (body.geocode) return json(await geocode(String(body.geocode)));
     if (body.suggest) return json(await suggest(String(body.suggest), String(body.stop ?? ''), body.lat, body.lng));
     const title = String(body.title ?? ''), stop = String(body.stop ?? ''), kind = String(body.kind ?? 'idea');

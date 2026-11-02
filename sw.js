@@ -2,7 +2,7 @@
 // The app's own files: network first, so the family sees the latest when there's signal.
 // The Supabase library and fonts: kept and refreshed in the background.
 // Photos: kept once seen, so cards and the big picture show offline.
-const CACHE = 'walkies-v24';
+const CACHE = 'walkies-v25';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'cities.js', 'places.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png'];
 
@@ -29,7 +29,8 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req)
+      // no-cache: always ask the server (cheap, it answers 304 when nothing changed), so a release shows on the next open
+      fetch(new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }))
         .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
         .catch(() => caches.match(req).then((r) => r || caches.match('index.html')))
     );
