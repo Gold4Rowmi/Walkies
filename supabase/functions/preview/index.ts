@@ -4,6 +4,7 @@
 //   { geocode: "Hoi An" }  -> { lat, lng } for its map pin
 //   { suggest, stop, lat, lng } -> place names for the title box
 //   { resolve: link }      -> { title, lat, lng } read from a Google Maps link
+//   { describe, stop }     -> { description } Wikipedia's one-liner, for the category
 //
 // Google share links (maps.app.goo.gl) answer a plain request with a
 // redirect to the full place address, which carries the name and the pin
@@ -148,17 +149,31 @@ async function keep(src: string): Promise<string> {
 
 async function findPhoto(title: string, stop: string) {
   for (const q of [title, title + ' ' + stop]) {
-    const pages = await ask('prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=600'
+    const pages = await ask('prop=pageimages|info|description&inprop=url&piprop=thumbnail&pithumbsize=600'
       + '&generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(q));
     for (const p of pages) {
       const hitTitle = String(p.title ?? '');
       const thumb = (p.thumbnail as { source?: string } | undefined)?.source;
       if (!thumb) continue;
       if (!exact(title, hitTitle) && !relevant(title, stop, hitTitle)) continue;
-      return { thumbnail: await keep(thumb), credit: hitTitle + ' · Wikipedia', page: String(p.fullurl ?? '') };
+      return { thumbnail: await keep(thumb), credit: hitTitle + ' · Wikipedia', page: String(p.fullurl ?? ''), description: String(p.description ?? '') };
     }
   }
-  return { thumbnail: '', credit: '', page: '' };
+  return { thumbnail: '', credit: '', page: '', description: '' };
+}
+
+// The same guarded match, for ideas that already have a photo: the one-line
+// description ("Theme park in Osaka, Japan") is what the app sorts by.
+async function describe(title: string, stop: string) {
+  for (const q of [title, title + ' ' + stop]) {
+    const pages = await ask('prop=description&generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(q));
+    for (const p of pages) {
+      const hitTitle = String(p.title ?? '');
+      if (!p.description || (!exact(title, hitTitle) && !relevant(title, stop, hitTitle))) continue;
+      return { description: String(p.description) };
+    }
+  }
+  return { description: '' };
 }
 
 async function geocode(place: string) {
@@ -233,6 +248,7 @@ Deno.serve(async (req) => {
   let body: Record<string, unknown> = {};
   try { body = (await req.json()) ?? {}; } catch { /* no body */ }
   try {
+    if (body.describe) return json(await describe(String(body.describe), String(body.stop ?? '')));
     if (body.resolve) return json(await resolveLink(String(body.resolve)));
     if (body.geocode) return json(await geocode(String(body.geocode)));
     if (body.suggest) return json(await suggest(String(body.suggest), String(body.stop ?? ''), body.lat, body.lng));

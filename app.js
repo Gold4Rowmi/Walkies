@@ -437,6 +437,63 @@
     return '<svg class="px ico" width="' + (size || 24) + '" height="' + (size || 24) + '" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true">' + out + '</svg>';
   }
 
+  // ---------- Categories: a colour and an icon, so a day's mix reads at a glance ----------
+  var CAT_ORDER = ['food', 'sights', 'themepark', 'nature', 'beach', 'shopping', 'nightlife', 'activity', 'travel'];
+  var CATS = {
+    food:      { name: 'Food',       g: ['......#.','.....#..','....#...','########','#......#','.#....#.','..####..','........'] },
+    sights:    { name: 'Sights',     g: ['########','.######.','..#..#..','.######.','..#..#..','..#..#..','..#..#..','........'] },
+    themepark: { name: 'Theme park', g: ['..####..','.#.##.#.','#..##..#','########','#..##..#','.#.##.#.','..####..','.#....#.'] },
+    nature:    { name: 'Nature',     g: ['........','...#....','..###...','..####..','.######.','.#######','########','........'] },
+    beach:     { name: 'Beach',      g: ['..####..','.######.','########','...#....','...#....','...#....','...#....','########'] },
+    shopping:  { name: 'Shopping',   g: ['..####..','..#..#..','########','########','########','########','########','........'] },
+    nightlife: { name: 'Nightlife',  g: ['...###..','..##..#.','.##.....','.##.....','.##.....','..##....','...###..','........'] },
+    activity:  { name: 'Activity',   g: ['...##...','...##...','########','.######.','..####..','.##..##.','##....##','........'] },
+    travel:    { name: 'Travel',     g: ['...#....','...##...','#..##...','########','#..##...','...##...','...#....','........'] }
+  };
+  function catIcon(c, size) {
+    var g = CATS[c].g, out = '';
+    g.forEach(function (row, y) { for (var x = 0; x < 8; x++) if (row[x] === '#') out += '<rect x="' + x + '" y="' + y + '" width="1" height="1"/>'; });
+    return '<svg class="px" width="' + size + '" height="' + size + '" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true">' + out + '</svg>';
+  }
+  // A coloured square with the icon; with a label it becomes a chip.
+  function catBadge(c, label) {
+    if (!c || !CATS[c]) return '';
+    return '<span class="cat cat-' + c + (label ? ' lab' : '') + '" title="' + CATS[c].name + '"' + (label ? '' : ' role="img" aria-label="' + CATS[c].name + '"') + '>'
+      + catIcon(c, 12) + (label ? '<span>' + CATS[c].name + '</span>' : '') + '</span>';
+  }
+  // Rules first from the title (what the family wrote), then from Wikipedia's
+  // one-liner. Order matters: "night market" is food, "Ha Long Bay cruise" is
+  // an activity, "Universal Studios" beats "studios".
+  var TITLE_RULES = [
+    ['travel', /^(bus|train|ferry|flight|taxi|transfer|shinkansen|grab)\b|\b(airport|check.?in|check.?out)\b/],
+    ['themepark', /disney|universal studios|\busj\b|theme park|fuji.?q|legoland|puroland|vinwonders|sun world|amusement|water park/],
+    ['food', /breakfast|lunch|dinner|brunch|ramen|sushi|udon|soba|tempura|okonomiyaki|takoyaki|yakitori|izakaya|wagyu|kaiseki|\bpho\b|banh|bun cha|cao lau|com ga|\bcafe\b|coffee|bakery|dessert|\beat\b|\bfood\b|noodle|market|yokocho|restaurant|\bbbq\b|tea house|\bhoto\b|\bsnack/],
+    ['nightlife', /\bbars?\b|nightclub|\bclub\b|karaoke|golden gai|rooftop|\bpub\b|night out|cocktail|\bbeer/],
+    ['activity', /cruise|\btours?\b|\bclass\b|onsen|hot spring|\bspa\b|massage|kayak|\bbike|cycling|rickshaw|\bride\b|\bshow\b|teamlab|aquarium|\bzoo\b|cooking|lantern|\bboat|kimono|workshop|snorkel|diving|\bgolf/],
+    ['beach', /beach|\bisland|cu lao/],
+    ['nature', /\bhike|hiking|\btrail|\bmount\b|\bmt\b|mountain|volcano|waterfall|\bfalls\b|forest|bamboo|gorge|\blake\b|\bcaves?\b|national park|valley|rice terrace|\bfuji\b|\bpark\b/],
+    ['shopping', /shopping|\bmall\b|outlet|department store|takeshita|shotengai|souvenir|akihabara|\bshops?\b/],
+    ['sights', /temple|shrine|-ji\b|\bji\b|dera\b|taisha|castle|museum|palace|tower|pagoda|crossing|bridge|monument|cathedral|\bgate\b|ancient town|old town|square|skytree|observatory|memorial|citadel|\btomb|garden|gyoen|pavilion/]
+  ];
+  var DESC_RULES = [
+    ['themepark', /theme park|amusement park|water park/],
+    ['food', /restaurant|cuisine|\bdish|\bfood|market|noodle|\bcafe|bakery|confection/],
+    ['nightlife', /nightlife|\bbars?\b|nightclub|entertainment district/],
+    ['activity', /aquarium|\bzoo\b|art collective|digital art|onsen|hot spring|\bspa\b|cruise|theatre|theater|stadium|festival/],
+    ['beach', /beach|seaside|\bisland|\bcoast/],
+    ['nature', /volcano|mountain|national park|waterfall|forest|\blake\b|gorge|\bcave|\bpark\b|hiking|\btrail|valley/],
+    ['shopping', /shopping|department store|\bmall\b/]
+  ];
+  var NOT_A_PLACE = /surname|given name|disambiguation|list of|\balbum|\bsong|\bfilm\b|\bband\b|novel|footballer|politician|company|video game|television/;
+  function rule(rules, text) { var f = fold(text); for (var i = 0; i < rules.length; i++) if (rules[i][1].test(f)) return rules[i][0]; return null; }
+  function catFromTitle(t) { return rule(TITLE_RULES, t); }
+  function catFromDesc(desc) {
+    if (!desc || NOT_A_PLACE.test(fold(desc))) return null;
+    return rule(DESC_RULES, desc) || 'sights';   // a place Wikipedia knows and none of the above: something to see
+  }
+  // What to show: the saved category, or the title's guess until one is saved.
+  function catOf(d) { return d.category || (d.kind === 'travel' ? 'travel' : catFromTitle(d.title)); }
+
   // ---------- Avatars: a colour and an initial, so names stop eating the row ----------
   var AV = ['#D9893B', '#F1C79E', '#C9CED6', '#E8A96B', '#F8E2CC', '#DF9549'];   // rust 500, 200, Cartridge Grey, rust 300, 100, 400
   function hashOf(s) {
@@ -684,6 +741,7 @@
     if (S.tab === 'map') drawMap();
     placeCursor();
     findPhotos();
+    findCategories();
   }
 
   // ---------- The selection cursor (desktop) ----------
@@ -868,7 +926,7 @@
   }
   function ideaCard(d) {
     return '<button class="card" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
-      + '<span class="sc">' + thumb(d) + '</span>'
+      + '<span class="sc">' + thumb(d) + catBadge(catOf(d), WIDE.matches) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="mrow">' + avatar(d.created_by) + maybeDay(d) + voteCount(d.id) + '</span>'
       + '</span></button>';
@@ -881,7 +939,18 @@
       return head + stateBlock('Nothing in the pool', 'Anyone can suggest a place. Paste a link and it lands here.',
         '<button class="btn" data-act="add-open">' + icon('plus', 16) + 'Suggest an idea</button>');
     }
-    return head + stopNames().map(function (s) {
+    var counts = {};
+    pool.forEach(function (d) { var c = catOf(d); if (c) counts[c] = (counts[c] || 0) + 1; });
+    var present = CAT_ORDER.filter(function (c) { return counts[c]; });
+    if (S.cat && !counts[S.cat]) S.cat = null;
+    var filter = present.length > 1 ? '<div class="catbar" role="group" aria-label="Show only">'
+      + '<button class="catf' + (S.cat ? '' : ' on') + '" data-act="cat-filter" data-cat="" aria-pressed="' + !S.cat + '">All <b class="num">' + pool.length + '</b></button>'
+      + present.map(function (c) {
+          return '<button class="catf' + (S.cat === c ? ' on' : '') + '" data-act="cat-filter" data-cat="' + c + '" aria-pressed="' + (S.cat === c) + '">'
+            + catBadge(c) + CATS[c].name + ' <b class="num">' + counts[c] + '</b></button>';
+        }).join('') + '</div>' : '';
+    if (S.cat) pool = pool.filter(function (d) { return catOf(d) === S.cat; });
+    return head + filter + stopNames().map(function (s) {
       var items = pool.filter(function (d) { return d.stop === s; });
       if (!items.length) return '';
       return '<h3 class="h-pixel">' + esc(s) + '</h3><div class="cards">' + items.map(ideaCard).join('') + '</div>';
@@ -913,16 +982,16 @@
   function plannedCard(d) {
     var tags = (d.start_time ? '<span class="tag ok">' + hhmm(d.start_time) + '</span>' : '<span class="tag">no time</span>')
       + (d.booked ? ' <span class="tag booked">Booked' + (d.booking_ref ? ' · ' + esc(d.booking_ref) : '') + '</span>' : '')
-      + (d.kind === 'travel' ? ' <span class="tag">Travel</span>' : '');
+;
     return '<button class="card' + (d.kind === 'travel' ? ' travel' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '"' + picked(d) + '><span class="bk"></span>'
-      + '<span class="sc">' + thumb(d) + '</span>'
+      + '<span class="sc">' + thumb(d) + catBadge(catOf(d)) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="mrow">' + avatar(d.created_by) + tags + '</span></span></button>';
   }
 
   function slotCard(d) {
     var v = votesFor(d.id).length;
-    return '<div class="card slot"><span class="sc">' + thumb(d) + '</span>'
+    return '<div class="card slot"><span class="sc">' + thumb(d) + catBadge(catOf(d)) + '</span>'
       + '<span class="inf"><span class="ttl clip">' + esc(d.title) + '</span>'
       + '<span class="mrow">' + avatar(d.created_by) + '<span class="tag slot">Slot suggested</span>' + voteCount(d.id) + '</span>'
       + '<span class="row">'
@@ -967,7 +1036,8 @@
     var more = pool.length > NEAR_N ? '<button class="btn ghost" data-act="near-more" data-day="' + day + '">Show other places</button>' : '';
     return '<div class="sugg"><p class="meta">Nearby in ' + esc(stop) + ' · suggestions, check before you go</p>'
       + list.map(function (n) {
-        return '<div class="nearby"><span class="ttl">' + esc(n.title) + '</span><span class="meta">' + esc(n.kind) + '</span>'
+        var nc = catFromTitle(n.title) || { food: 'food', transport: 'activity' }[n.kind] || 'sights';
+        return '<div class="nearby"><span class="ttl">' + esc(n.title) + '</span><span class="meta">' + catBadge(nc, true) + '</span>'
           + '<span class="row">'
           + '<button class="btn" data-act="sugg-add" data-title="' + esc(n.title) + '" data-stop="' + esc(n.stop) + '" data-scene="' + esc(n.scene) + '">Suggest this</button>'
           + '<button class="btn" data-act="sugg-hide" data-title="' + esc(n.title) + '" data-stop="' + esc(n.stop) + '">Not for us</button>'
@@ -984,9 +1054,19 @@
       h += '<button class="dayrow' + (S.day === k ? ' on' : '') + (k && k === todayDay() ? ' today' : '') + '" data-act="day" data-id="' + k + '"'
         + (S.day === k ? ' aria-current="true"' : '') + '>'
         + '<b class="num">' + (k || '') + '</b><span>' + (k ? WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] : 'Unscheduled') + '</span>'
-        + (c ? '<span class="n" aria-label="' + c + ' planned">' + c + '</span>' : '') + '</button>';
+        + (c ? '<span class="pips" aria-label="' + c + ' planned">' + plannedOn(k).slice(0, 8).map(function (d) {
+            var cc = catOf(d); return '<i class="' + (cc ? 'cat-' + cc : 'cat-none') + '"></i>'; }).join('') + '</span>' : '') + '</button>';
     }
     return h + '</div>';
+  }
+  // The day's mix: one coloured icon per category with its count.
+  function mixHTML(list) {
+    var counts = {};
+    list.forEach(function (d) { var c = catOf(d); if (c) counts[c] = (counts[c] || 0) + 1; });
+    var present = CAT_ORDER.filter(function (c) { return counts[c]; });
+    if (!present.length) return '';
+    return '<p class="mix" aria-label="This day: ' + present.map(function (c) { return counts[c] + ' ' + CATS[c].name; }).join(', ') + '">'
+      + present.map(function (c) { return '<span class="mixi">' + catBadge(c) + '<b class="num">' + counts[c] + '</b></span>'; }).join('') + '</p>';
   }
   function daysHTML() {
     var n = S.day, chips = '';
@@ -1006,7 +1086,7 @@
         n === 0 ? 'Ideas with no day land here.' : 'Open an idea and give it a time to put it on this day.',
         '<button class="btn" data-act="tab" data-tab="ideas">Go to the pool</button>');
     }
-    return chips + '<div class="dayhead">' + head + pre + '</div>' + items + (n > 0 && !WIDE.matches ? nearbyHTML(n) : '');
+    return chips + '<div class="dayhead">' + head + mixHTML(planned) + pre + '</div>' + items + (n > 0 && !WIDE.matches ? nearbyHTML(n) : '');
   }
 
   // ---------- Getting between plans: Google Routes, with your Maps key ----------
@@ -1247,7 +1327,7 @@
     var credit = !d.photo_path && d.auto_credit ? '<span class="credit">' + esc(d.auto_credit) + '</span>' : '';
     var h = '<div class="hero">' + sceneSVG(d.scene, 'meet') + (pu ? '<img src="' + esc(pu) + '" alt="' + esc(d.title) + '" onerror="this.remove()">' + credit : '') + '</div>'
       + '<h2 class="h-pixel lg">' + esc(d.title) + '</h2>'
-      + '<p class="mrow">' + avatar(d.created_by) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
+      + '<p class="mrow">' + avatar(d.created_by) + catBadge(catOf(d), true) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
       + (d.status === 'removed' && d.archive_reason ? '<p class="meta">' + esc(d.archive_reason) + '</p>' : '')
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
       + (d.link ? '<div class="row linkrow"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a></div>' : '');
@@ -1304,12 +1384,16 @@
     return h;
   }
 
+  function catOpts(sel) {
+    return CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === sel ? ' selected' : '') + '>' + CATS[c].name + '</option>'; }).join('');
+  }
   function editSheet(d) {
     if (!d) return '<p class="err">That idea is gone.</p>';
     return '<h2 class="h-pixel lg">Edit</h2>'
       + '<label class="lbl">Title<input id="eTitle" value="' + esc(d.title) + '"></label>'
       + '<label class="lbl">Link<input id="eLink" value="' + esc(d.link) + '"></label>'
       + '<label class="lbl">Stop<select id="eStop">' + stopOpts(d.stop) + '</select></label>'
+      + '<label class="lbl">Category<select id="eCat">' + catOpts(catOf(d)) + '</select></label>'
       + (d.day > 0 ? '<p class="meta">Moving it to another stop takes it off ' + dayLabel(d.day) + '.</p>' : '')
       + '<label class="lbl">Note<textarea id="eNote" rows="3">' + esc(d.note) + '</textarea></label>'
       + '<p class="err" id="eErr"></p>'
@@ -1324,6 +1408,7 @@
       + '<label class="lbl">Title<input id="fTitle" data-suggest="place" autocomplete="off" placeholder="Name it"></label>'
       + '<div class="suggest" role="listbox"></div>'
       + '<label class="lbl">Type<select id="fKind"><option value="idea">Idea</option><option value="travel">Travel (flight or transfer)</option></select></label>'
+      + '<label class="lbl">Category<select id="fCat"><option value="">Work it out from the name</option>' + catOpts('') + '</select></label>'
       + '<label class="lbl">Stop<select id="fStop">' + stopOpts(stopFor(day || 1)) + '</select></label>'
       + '<label class="lbl">' + (pre ? 'Day' : 'Maybe day') + '<select id="fDay">' + dayOpts(day || 0, stopFor(day || 1)) + '</select></label>'
       + (pre ? '<div class="row"><label class="lbl">Time<input id="fTime" type="time"></label>'
@@ -1648,6 +1733,8 @@
       p_dur: pre ? (Number(val('fDur')) || 60) : 60,
       p_ref: val('fRef'), p_preset: pre
     }));
+    var cat = val('fCat') || (kind === 'travel' ? 'travel' : '');
+    if (cat && r && r.id) await sb.rpc('set_category', { p_idea: r.id, p_cat: cat, p_auto: false });
     S.sheet = null;
     if (pre) { S.tab = 'days'; S.day = day; } else S.tab = 'ideas';
     toast(r && r.merged ? 'Already in the pool. Added your vote and note.'
@@ -1662,6 +1749,11 @@
     if (link && !validLink(link)) return setErr('eErr', 'We can’t read that link. Use a Google Maps, Instagram, TikTok or airline link.');
     var r = await sb.rpc('update_idea', { p_idea: el.dataset.id, p_title: title, p_stop: val('eStop'), p_link: link, p_note: val('eNote') });
     if (r.error) return setErr('eErr', r.error.message);
+    var was = ideaById(el.dataset.id), cat = val('eCat');
+    if (cat && (!was || was.category !== cat)) {
+      var c = await sb.rpc('set_category', { p_idea: el.dataset.id, p_cat: cat, p_auto: false });
+      if (c.error) return setErr('eErr', c.error.message);
+    }
     S.sheet = { kind: 'idea', id: el.dataset.id };
     toast('Saved.', 'success');
     await refresh();
@@ -1766,6 +1858,7 @@
 
   H['near-more'] = function (el) { var d = Number(el.dataset.day); nearShift[d] = (nearShift[d] || 0) + 1; render(); };
 
+  H['cat-filter'] = function (el) { S.cat = el.dataset.cat || null; render(); };
   H['sugg-hide'] = async function (el) {
     check(await sb.from('hidden_suggestions').insert({ trip_id: S.tripId, stop: el.dataset.stop, title: el.dataset.title }));
     toast('Hidden for everyone.', 'new');
@@ -1926,6 +2019,34 @@
     }
     lookingUp = false;
     if (found) render();
+  }
+
+  // Categories for ideas that have none: the title's rules first, then
+  // Wikipedia's description. A few at a time, each idea once per session.
+  var catTried = {}, catBusy = false;
+  async function findCategories() {
+    if (catBusy || !S.data || S.offline) return;
+    var todo = S.data.ideas.filter(function (d) { return !d.category && d.status !== 'removed' && !catTried[d.id]; }).slice(0, 6);
+    if (!todo.length) return;
+    catBusy = true;
+    var changed = false;
+    try {
+      for (var i = 0; i < todo.length; i++) {
+        var d = todo[i]; catTried[d.id] = 1;
+        var c = d.kind === 'travel' ? 'travel' : catFromTitle(d.title);
+        if (!c) {
+          var r = await sb.functions.invoke('preview', { body: { describe: d.title, stop: d.stop } });
+          if (r.error || !r.data) break;   // try again next load
+          c = catFromDesc(r.data.description);
+        }
+        if (!c) continue;
+        var save = await sb.rpc('set_category', { p_idea: d.id, p_cat: c, p_auto: true });
+        if (save.error) break;
+        d.category = c; changed = true;
+      }
+    } catch (e) { /* next load tries again */ }
+    catBusy = false;
+    if (changed) render();
   }
 
   // ---------- Push notifications ----------

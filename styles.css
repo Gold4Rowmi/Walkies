@@ -83,6 +83,10 @@
 /* This app's shell: Walkies is Coral, a family app outside the five product shells.
    Black on Coral is 6.6:1; the deep tone is for coral words on Paper. */
 :root{ --shell-walkies: #F26B5B; --shell-walkies-deep: #A13420; --shell: var(--shell-walkies); --shell-text: var(--shell-walkies-deep); }
+/* Walkies' category tokens: the ROWMI shells and tan, so the mix stays on brand.
+   No blue: blue means selected. Icons are black on these, light on the two dark ones. */
+:root{ --cat-food:#D9893B; --cat-sights:#B497F2; --cat-themepark:#F0548C; --cat-nature:#9BCB3B; --cat-beach:#2FC7A1;
+  --cat-shopping:#F4C430; --cat-nightlife:#3D2E6B; --cat-activity:#7FD3DF; --cat-ink:#16181D; --cat-light:#ECEEF1; }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --shell-text: var(--shell); } }
 :root[data-theme="dark"]{ --shell-text: var(--shell); }
 
@@ -556,3 +560,38 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .mock .mk.hot,:root:not([data-theme="light"]) .mock .mrow2.hot{color:var(--text-high)}}
 :root[data-theme="dark"] .mock .mk.hot,:root[data-theme="dark"] .mock .mrow2.hot{color:var(--text-high)}
 .banner.install .txt{flex:1 1 calc(100% - 40px)}
+
+/* ===== Categories: a colour and an icon ===== */
+.cat{display:inline-flex; align-items:center; justify-content:center; gap:4px; width:20px; height:20px; flex:none; border-radius:var(--r-inner);
+  border:1px solid var(--cat-ink); color:var(--cat-ink); box-sizing:border-box; vertical-align:middle}
+.cat.lab{width:auto; padding:0 6px 0 3px; font-size:12px; font-weight:600; line-height:1}
+.cat-food{background:var(--cat-food)} .cat-sights{background:var(--cat-sights)} .cat-themepark{background:var(--cat-themepark)}
+.cat-nature{background:var(--cat-nature)} .cat-beach{background:var(--cat-beach)} .cat-shopping{background:var(--cat-shopping)}
+.cat-activity{background:var(--cat-activity)}
+.cat-nightlife{background:var(--cat-nightlife); color:var(--cat-light)}
+.cat-travel{background:var(--ink); color:var(--on-ink); border-color:var(--ink)}
+.cat-none{background:var(--border)}
+.sc .cat{position:absolute; right:2px; bottom:2px; z-index:1}
+/* The day's mix */
+.mix{display:flex; flex-wrap:wrap; gap:12px; margin:0}
+.mixi{display:inline-flex; align-items:center; gap:4px; font-size:14px}
+.mixi b{font-weight:600}
+/* Ideas: show only one kind */
+.catbar{display:flex; gap:8px; overflow-x:auto; margin:0 -16px; padding:2px 16px; scrollbar-width:none}
+.catbar::-webkit-scrollbar{display:none}
+.catf{flex:none; display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 12px 0 10px; border:1px solid var(--border); border-radius:var(--r-outer);
+  background:var(--surface-raised); box-shadow:var(--frame); font:inherit; font-size:13px; color:var(--text-high); cursor:pointer}
+.catf .num{font-weight:600; color:var(--text-medium)}
+.catf.on{background:var(--ink); color:var(--on-ink); border-color:var(--ink)}
+.catf.on .num{color:var(--on-ink)}
+.nearby .meta{display:flex}
+@media (min-width: 960px) {
+  .dayhead{grid-template-areas:"t a" "w a" "m m"}
+  .dayhead > .mix{grid-area:m; margin-top:8px}
+  .catbar{flex-wrap:wrap; margin:0; padding:0; overflow:visible}
+  .t-ideas .card .sc .cat{left:8px; top:8px; right:auto; bottom:auto; height:24px}
+  /* Each day in the list shows its plans as coloured squares, in order */
+  .pips{display:flex; gap:2px}
+  .pips i{width:8px; height:8px; border-radius:1px}
+  .dayrow.on .pips i{box-shadow:0 0 0 1px var(--on-ink)}
+}

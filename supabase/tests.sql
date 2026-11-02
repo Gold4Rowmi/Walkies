@@ -235,6 +235,27 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
   perform transfer_owner(trip, owner_id);   -- hand it back so test 24 runs as written
 
+  -- 27. Categories: a guess only fills an empty one; choosing one by hand follows the edit rule.
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  perform set_admin(trip, mate_id, false);   -- handing the trip back in 26 left Mate an admin
+  perform set_category(b, 'food', true);
+  if (select category from ideas where id = b) <> 'food' then failed := failed || E'\n27 a guess did not fill an empty category'; end if;
+  perform set_category(b, 'sights', true);
+  if (select category from ideas where id = b) <> 'food' then failed := failed || E'\n27 a guess replaced a category'; end if;
+  perform set_category(b, 'nature', false);
+  if (select category from ideas where id = b) <> 'nature' then failed := failed || E'\n27 the owner could not choose one'; end if;
+  begin
+    perform set_category(b, 'castles', false);
+    failed := failed || E'\n27 a made-up category was accepted';
+  exception when others then null;
+  end;
+  perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
+  begin
+    perform set_category(b, 'beach', false);
+    failed := failed || E'\n27 a member changed someone else''s category';
+  exception when others then null;
+  end;
+
   -- 24. Only the owner deletes the trip.
   perform set_config('request.jwt.claims', json_build_object('sub', mate_id)::text, true);
   begin
