@@ -2,6 +2,7 @@
 //
 //   { title, stop, kind }  -> a picture of the place
 //   { geocode: "Hoi An" }  -> { lat, lng } for its map pin
+//   { suggest, stop, lat, lng } -> place names for the title box
 //
 // Why not the obvious sources (all measured 2026-11-02):
 //   TikTok oEmbed answers 200 but no longer returns thumbnail_url.
@@ -137,13 +138,42 @@ async function geocode(place: string) {
   return { lat: null, lng: null, matched: '' };
 }
 
+// Places whose names start with what is being typed, near the stop, for
+// the title box. nearcoord keeps "fus" by Kyoto on Fushimi Inari, not a town
+// in Aichi. Every typed word must start a word of the name, so it behaves
+// like autocomplete, and wards, towns and stations are dropped because
+// nobody plans a day at one.
+const ADMIN = /^(ward|commune|town|village|designated city|provincial city|city|urban district|rural district|district of|railway station|metro station|train station)\b/i;
+async function suggest(typed: string, stop: string, lat: unknown, lng: unknown) {
+  const term = typed.replace(/[*"~:]/g, ' ').trim();
+  const asked = words(term);
+  if (term.length < 3 || !asked.length) return { places: [] };
+  const near = typeof lat === 'number' && typeof lng === 'number'
+    ? ` nearcoord:150km,${lat.toFixed(4)},${lng.toFixed(4)}` : (stop ? ' ' + stop : '');
+  const pages = await ask('prop=description&generator=search&gsrnamespace=0&gsrlimit=12&gsrsearch='
+    + encodeURIComponent(term + '*' + near));
+  const places: { title: string; note: string }[] = [];
+  for (const p of pages) {
+    const title = String(p.title ?? ''), note = String(p.description ?? '');
+    // Lists, "may refer to" pages and history (battles, events by year) are not places.
+    if (/^(list of|battle of)/i.test(title) || /disambiguation/i.test(title)) continue;
+    if (/disambiguation|same term|^\d{3,4}\b/i.test(note) || ADMIN.test(note)) continue;
+    const have = words(title);
+    if (!asked.every(a => have.some(h => h.startsWith(a)))) continue;
+    places.push({ title, note });
+    if (places.length >= 6) break;
+  }
+  return { places };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  let body: Record<string, string> = {};
+  let body: Record<string, unknown> = {};
   try { body = (await req.json()) ?? {}; } catch { /* no body */ }
   try {
     if (body.geocode) return json(await geocode(String(body.geocode)));
-    const title = body.title ?? '', stop = body.stop ?? '', kind = body.kind ?? 'idea';
+    if (body.suggest) return json(await suggest(String(body.suggest), String(body.stop ?? ''), body.lat, body.lng));
+    const title = String(body.title ?? ''), stop = String(body.stop ?? ''), kind = String(body.kind ?? 'idea');
     // Flights and transfers have no place to photograph.
     if (!title || kind === 'travel') return json({ thumbnail: '', credit: '', page: '' });
     return json(await findPhoto(title, stop));

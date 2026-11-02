@@ -18,6 +18,7 @@
       { name: 'Ha Long',     days: 4, zone: 'Asia/Ho_Chi_Minh', lat: 20.9101, lng: 107.1839 }
     ]
   };
+  var PLACES = window.WALKIES_PLACES || {};
   var CITIES = (window.WALKIES_CITIES || []).map(function (c) {
     return { name: c[0], country: c[1], zone: c[2], lat: c[3], lng: c[4] };
   });
@@ -27,17 +28,52 @@
   function suggestionsFor(kind, typed) {
     var q = fold(typed);
     if (!q) return [];
-    var pool = kind === 'city'
-      ? CITIES.map(function (c) { return { value: c.name, note: c.country }; })
-      : S.data.nearby.filter(function (n) { return stopNames().indexOf(n.stop) >= 0; })
-          .map(function (n) { return { value: n.title, note: n.stop }; });
+    var pool, stop = '';
+    if (kind === 'city') {
+      pool = CITIES.map(function (c) { return { value: c.name, note: c.country }; });
+    } else {
+      // The stop picked in the form, so Kyoto suggests Kyoto. The built-in
+      // list first, then the trip's own nearby ideas.
+      var sel = document.getElementById('fStop');
+      stop = sel ? sel.value : '';
+      pool = (PLACES[stop] || []).map(function (t) { return { value: t, note: stop }; })
+        .concat(S.data.nearby.filter(function (n) { return n.stop === stop; })
+          .map(function (n) { return { value: n.title, note: n.stop }; }));
+    }
     var hits = pool.filter(function (o) { return fold(o.value).indexOf(q) >= 0 || fold(o.note).indexOf(q) >= 0; });
-    if (hits.length === 1 && fold(hits[0].value) === q) return [];   // already exactly that
     hits.sort(function (a, b) {
       var as = fold(a.value).indexOf(q) === 0 ? 0 : 1, bs = fold(b.value).indexOf(q) === 0 ? 0 : 1;
       return as - bs || a.value.localeCompare(b.value);
     });
+    // Then whatever Wikipedia knows near the stop, once it has answered.
+    var live = kind === 'place' && liveCache[stop + '|' + q];
+    if (live) {
+      var seen = hits.map(function (o) { return fold(o.value); });
+      live.forEach(function (o) { if (seen.indexOf(fold(o.value)) < 0) { hits.push(o); seen.push(fold(o.value)); } });
+    }
+    if (hits.length === 1 && fold(hits[0].value) === q) return [];   // already exactly that
     return hits.slice(0, 6);
+  }
+
+  // ---------- Live place search near the stop ----------
+  // Asked once the typing pauses, remembered per stop and text, so going back
+  // over the same letters costs nothing. A failure just means no extra rows.
+  var liveCache = {}, liveTimer = null;
+  function askLive(input) {
+    clearTimeout(liveTimer);
+    var sel = document.getElementById('fStop');
+    var stop = sel ? sel.value : '', q = fold(input.value);
+    if (q.length < 3 || liveCache[stop + '|' + q]) return;
+    liveTimer = setTimeout(async function () {
+      var at = stopByName(stop);
+      if (at.lat == null) at = cityByName(stop) || {};
+      try {
+        var r = await sb.functions.invoke('preview', { body: { suggest: input.value, stop: stop, lat: at.lat, lng: at.lng } });
+        if (r.error || !r.data || !r.data.places) return;
+        liveCache[stop + '|' + q] = r.data.places.map(function (p) { return { value: p.title, note: p.note || stop }; });
+        if (document.activeElement === input && fold(input.value) === q) showSuggestions(input);
+      } catch (e) { /* no extra rows */ }
+    }, 350);
   }
   function showSuggestions(input) {
     var box = input.closest('.lbl, .row').nextElementSibling;
@@ -1452,6 +1488,7 @@
     if (!f.dataset || !f.dataset.suggest) return;
     showSuggestions(f);
     applyCity(f);
+    if (f.dataset.suggest === 'place') askLive(f);
   });
 
   app.addEventListener('change', function (ev) {

@@ -190,6 +190,8 @@ h2,h3{margin:0}
 .sug:first-child{border-top:0}
 .sug:active{background:var(--sel-soft)}
 @media (hover: hover) { .sug:hover{ background:var(--sunken) } }
+.sug span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.sug .meta{flex-shrink:0; max-width:45%}
 
 /* ===== Forms ===== */
 .lbl{font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px}
