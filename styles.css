@@ -88,8 +88,8 @@
 
 /* ===== Base ===== */
 *{box-sizing:border-box}
-html,body{margin:0; min-height:100%; background:var(--surface-sunken)}
-body{color:var(--text-high); font-family:var(--f-ui); font-size:14px; line-height:1.55; overflow-x:hidden}
+html,body{margin:0; min-height:100%; background:var(--surface-sunken); overflow-x:clip}
+body{color:var(--text-high); font-family:var(--f-ui); font-size:14px; line-height:1.55; overflow-x:clip}
 .pixel{font-family:var(--f-pixel); font-weight:400; -webkit-font-smoothing:none; font-smooth:never}
 svg.px{display:block; shape-rendering:crispEdges}
 .num{font-variant-numeric:tabular-nums}
@@ -102,7 +102,8 @@ b,strong{font-weight:600}
 .app{display:flex; justify-content:center; min-height:100vh; min-height:100dvh}
 .screen{width:100%; max-width:440px; min-height:100vh; min-height:100dvh; background:var(--surface-base); display:flex; flex-direction:column;
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
-  background-size:16px 16px}
+  background-size:16px 16px;
+  overflow-x:clip}   /* the tab slide starts 24 px off to the side; clip it, or iPhone Safari zooms out to fit it */
 .screen.center{align-items:center; justify-content:center; text-align:center; gap:16px; padding:24px 16px}
 
 /* ===== Header: the app is the hero, Rommel is the signature. No ROWMI wordmark here. ===== */
