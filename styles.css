@@ -150,7 +150,8 @@ h2,h3{margin:0}
 /* ===== Sheet ===== */
 .sheet-wrap{position:fixed; inset:0; height:100vh; height:100dvh; background:rgba(22,24,29,.45); display:flex; align-items:flex-end; justify-content:center; z-index:30}
 .sheet{width:100%; max-width:440px; max-height:88vh; max-height:88dvh; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:var(--raised); border-top:2px solid var(--ink);
-  border-radius:14px 14px 0 0; padding:6px 16px calc(20px + env(safe-area-inset-bottom,0px)); animation:sheetup .26s var(--spring)}
+  border-radius:14px 14px 0 0; padding:6px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet.opening{animation:sheetup .26s var(--spring)}
 @keyframes sheetup{from{transform:translateY(40px)} to{transform:none}}
 .sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px; position:sticky; top:0; background:var(--raised); padding:6px 0 8px; z-index:1}
 .grab{width:44px; height:6px; background:var(--frame); border-radius:3px}

@@ -444,11 +444,22 @@
   // render() replaces the whole screen, which threw away where you were:
   // picking a later day sent the strip back to day 1, and a vote or an
   // arriving photo jumped the page to the top.
+  // The rule: a redraw never moves you. Only opening something new starts at
+  // its top. This covers the page, the day strip and an open sheet, so adding
+  // a stop, voting or posting a comment leaves you exactly where you were.
+  function sheetKey() { return S.sheet ? S.sheet.kind + ':' + (S.sheet.id || '') : ''; }
+  var lastSheetKey = '';
   function keepPlace(fn) {
     var bar = document.querySelector('.daybar');
     var left = bar ? bar.scrollLeft : 0;
     var top = window.scrollY;
+    var sh = document.querySelector('.sheet');
+    var sheetTop = sh ? sh.scrollTop : 0;
+    var sameSheet = sheetKey() === lastSheetKey;
     fn();
+    var ns = document.querySelector('.sheet');
+    if (ns && sameSheet) ns.scrollTop = sheetTop;
+    lastSheetKey = sheetKey();
     var nb = document.querySelector('.daybar');
     if (nb) {
       nb.scrollLeft = left;
@@ -753,7 +764,8 @@
       : s.kind === 'add' ? addSheet(s.pre, s.day)
       : s.kind === 'plan' ? planSheet()
       : tripSheet();
-    return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet" role="dialog" aria-modal="true">'
+    var opening = sheetKey() !== lastSheetKey;
+    return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet' + (opening ? ' opening' : '') + '" role="dialog" aria-modal="true">'
       + '<div class="sheet-top"><span class="grab"></span><button class="btn icon" data-act="close-sheet" data-sfx="back" aria-label="Close" title="Close">' + icon('close') + '</button></div>'
       + '<div class="sbody">' + inner + '</div></div></div>';
   }
@@ -1039,6 +1051,11 @@
     var last = S.planDraft.stops[S.planDraft.stops.length - 1];
     S.planDraft.stops.push({ name: '', days: 1, zone: last ? last.zone : 'UTC', lat: null, lng: null });
     render();
+    var rows = document.querySelectorAll('[data-stop-row]'), row = rows[rows.length - 1];
+    if (row) {
+      row.scrollIntoView({ block: 'nearest' });
+      row.querySelector('[data-f="name"]').focus({ preventScroll: true });
+    }
   };
   H['plan-del'] = function (el) {
     readPlanDraft();
