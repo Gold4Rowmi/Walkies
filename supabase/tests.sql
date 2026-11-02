@@ -37,7 +37,7 @@ begin
   end if;
 
   -- 3. The same link again merges instead of making a second idea.
-  r := add_idea(trip,'idea','Senso-ji again','Tokyo','https://www.maps.app.goo.gl/senso/','Same place','temple',0,null,60,'',false);
+  r := add_idea(trip,'idea','Senso-ji again','Tokyo','https://maps.app.goo.gl/senso/','Same place','temple',0,null,60,'',false);
   if (r->>'merged') <> 'true' then failed := failed || E'\n3 duplicate link did not merge'; end if;
   if (select count(*) from ideas where trip_id = trip) <> 1 then
     failed := failed || E'\n3 duplicate link created a second idea';
@@ -187,6 +187,29 @@ begin
   begin
     perform leave_trip(trip);
     failed := failed || E'\n23 the owner left the trip';
+  exception when others then null;
+  end;
+
+  -- 25. A day belongs to one stop: a Tokyo idea can't be hoped for, or planned, on a Kyoto day.
+  --     (No plan set, so the sample plan applies: Tokyo days 1-4, Kyoto 5-7.)
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  r := add_idea(trip,'idea','Tokyo idea','Tokyo','','','walk',0,null,60,'',false);
+  req := (r->>'id')::uuid;
+  perform set_maybe_day(req, 3);   -- its own stop's day: fine
+  if (select day from ideas where id = req) <> 3 then failed := failed || E'\n25 maybe day on its own stop failed'; end if;
+  begin
+    perform set_maybe_day(req, 5);
+    failed := failed || E'\n25 maybe day on another stop was allowed';
+  exception when others then null;
+  end;
+  begin
+    perform place_idea(req, 6, null, 60);
+    failed := failed || E'\n25 planned onto another stop''s day';
+  exception when others then null;
+  end;
+  begin
+    perform add_idea(trip,'idea','Wrong day','Kyoto','','','walk',2,null,60,'',false);
+    failed := failed || E'\n25 added onto another stop''s day';
   exception when others then null;
   end;
 

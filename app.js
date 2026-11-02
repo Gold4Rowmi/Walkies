@@ -883,7 +883,7 @@
         + ((mine || manage) ? '<button class="btn icon" data-act="edit-open" data-id="' + esc(d.id) + '" aria-label="Edit this" title="Edit">' + icon('pencil') + '</button>' : '')
         + '</div>'
         + '<div class="plan">'
-        + '<label class="lbl">Day<select id="dSel">' + dayOpts(d.day, d.stop) + '</select></label>'
+        + '<label class="lbl">Day<select id="dSel"' + (d.status === 'suggested' ? ' data-maybe="' + esc(d.id) + '"' : '') + '>' + dayOpts(d.day, d.stop) + '</select></label>'
         + '<label class="lbl"><span>Time <span class="dim">' + esc(tzLabel(stopByName(d.stop).zone)) + '</span></span><input id="tIn" type="time" value="' + hhmm(d.start_time) + '"></label>'
         + '<label class="lbl">Min<input id="mIn" type="number" min="15" step="15" value="' + (d.duration_min || 60) + '"></label></div>'
         + '<div class="row"><button class="btn primary" data-act="plan" data-id="' + esc(d.id) + '"><span class="glyph">A</span>' + (d.status === 'approved' ? 'Save' : 'Plan it') + '</button></div>';
@@ -1507,6 +1507,19 @@
     showSuggestions(f);
     applyCity(f);
     if (f.dataset.suggest === 'place') askLive(f);
+  });
+
+  // On a suggestion, picking a day is the whole action: it saves as the day
+  // hoped for, without planning it. Planning still takes the button below.
+  app.addEventListener('change', async function (ev) {
+    var f = ev.target;
+    if (f.id !== 'dSel' || !f.dataset.maybe) return;
+    var day = Number(f.value) || 0;
+    var r = await sb.rpc('set_maybe_day', { p_idea: f.dataset.maybe, p_day: day });
+    if (r.error) { toast(r.error.message, 'error'); SFX.error(); await refresh(); return; }
+    SFX.tick();
+    toast(day ? 'Moved to maybe ' + dayLabel(day) + '.' : 'Moved to any day.', 'success');
+    await refresh();
   });
 
   // A new stop brings its own days; keep the picked day only if it belongs.

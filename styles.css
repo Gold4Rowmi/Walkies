@@ -256,3 +256,8 @@ dialog.about .lock{margin:4px 0 16px}
 .spark{position:fixed; width:8px; height:8px; margin:-4px 0 0 -4px; background:var(--tan); pointer-events:none; z-index:57;
   animation:spark .42s steps(4,end) forwards}
 @keyframes spark{to{transform:translate(var(--dx),var(--dy))}}
+
+/* Room under the last control, so a floating host badge or the home bar
+   never sits on top of something you need to tap. */
+.sbody{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+.body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
