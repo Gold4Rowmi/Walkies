@@ -9,6 +9,7 @@ Live at **https://rowmi-walkies.netlify.app** · database: the `Lao-holiday` Sup
 | File | What it is |
 |---|---|
 | `index.html`, `styles.css`, `app.js` | The app. Plain JavaScript, no build step. |
+| `cities.js` | Preset cities for trip stops: name, country, time zone, coordinates. Add to it freely. |
 | `config.js` | Supabase URL and key, the maps key, the push key, and the trip start date. |
 | `sw.js` | Offline shell and push notifications. |
 | `manifest.webmanifest`, `icon.svg`, `apple-touch-icon.png` | Home-screen install. |
@@ -24,6 +25,8 @@ In the app: **Trip (menu) → Dates and stops.** Owner only.
 
 - **First day** sets every day label.
 - **Stops** go in the order you visit them, each with a number of days and a time zone.
+  Start typing a stop's name to search 130 preset cities (`cities.js`); picking one fills
+  in its time zone and map pin. Any other place can still be typed by hand.
   Day numbers run straight through, so changing one stop's days moves every later day.
 - New or renamed stops are looked up on Wikipedia for their map pin. A stop it cannot
   place still saves, and the map says which ones are missing.

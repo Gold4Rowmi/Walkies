@@ -18,6 +18,14 @@
       { name: 'Ha Long',     days: 4, zone: 'Asia/Ho_Chi_Minh', lat: 20.9101, lng: 107.1839 }
     ]
   };
+  var CITIES = (window.WALKIES_CITIES || []).map(function (c) {
+    return { name: c[0], country: c[1], zone: c[2], lat: c[3], lng: c[4] };
+  });
+  function cityByName(n) {
+    n = String(n || '').trim().toLowerCase();
+    for (var i = 0; i < CITIES.length; i++) if (CITIES[i].name.toLowerCase() === n) return CITIES[i];
+    return null;
+  }
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   // Day numbers run straight through the stops in order, so the first and last
@@ -833,7 +841,9 @@
   function addSheet(pre, day) {
     return '<h2 class="h-pixel lg">' + (pre ? 'Pre-set a slot' : 'Add to the trip') + '</h2>'
       + '<label class="lbl">Link<input id="fLink" placeholder="Google Maps, Instagram, TikTok or airline link"></label>'
-      + '<label class="lbl">Title<input id="fTitle" placeholder="Name it"></label>'
+      + '<label class="lbl">Title<input id="fTitle" list="placeList" autocomplete="off" placeholder="Name it"></label>'
+      + '<datalist id="placeList">' + S.data.nearby.filter(function (n) { return stopNames().indexOf(n.stop) >= 0; })
+          .map(function (n) { return '<option value="' + esc(n.title) + '">' + esc(n.stop) + '</option>'; }).join('') + '</datalist>'
       + '<label class="lbl">Type<select id="fKind"><option value="idea">Idea</option><option value="travel">Travel (flight or transfer)</option></select></label>'
       + '<label class="lbl">Stop<select id="fStop">' + stopOpts(stopFor(day || 1)) + '</select></label>'
       + '<label class="lbl">' + (pre ? 'Day' : 'Maybe day') + '<select id="fDay">' + dayOpts(day || 0) + '</select></label>'
@@ -857,7 +867,10 @@
   function planSheet() {
     var d = S.planDraft;
     var total = d.stops.reduce(function (a, x) { return a + Math.max(1, Number(x.days) || 1); }, 0);
-    var h = '<h2 class="h-pixel lg">Dates and stops</h2>'
+    var h = '<datalist id="cityList">' + CITIES.map(function (c) {
+        return '<option value="' + esc(c.name) + '">' + esc(c.country) + '</option>';
+      }).join('') + '</datalist>'
+      + '<h2 class="h-pixel lg">Dates and stops</h2>'
       + '<label class="lbl">First day of the trip<input id="pStart" type="date" value="' + esc(d.start) + '"></label>'
       + '<p class="meta">Stops in the order you visit them. Day numbers follow on from one stop to the next.</p>';
     var day = 1;
@@ -873,12 +886,13 @@
       }).join('');
       h += '<div class="sugg" data-stop-row="' + i + '">'
         + '<div class="row"><span class="glyph">' + (i + 1) + '</span>'
-        + '<input data-f="name" value="' + esc(st.name) + '" placeholder="Place, e.g. Kyoto" aria-label="Stop ' + (i + 1) + ' name">'
+        + '<input data-f="name" list="cityList" autocomplete="off" value="' + esc(st.name) + '" placeholder="Search a city, or type any place" aria-label="Stop ' + (i + 1) + ' name">'
         + '<button class="btn icon" data-act="plan-del" data-i="' + i + '" aria-label="Remove stop ' + (i + 1) + '" title="Remove"'
         + (d.stops.length < 2 ? ' disabled' : '') + '>' + icon('close') + '</button></div>'
         + '<div class="row"><label class="lbl">Days<input data-f="days" type="number" min="1" max="60" value="' + n + '"></label>'
         + '<label class="lbl" style="flex:1">Time zone<select data-f="zone">' + zones + '</select></label></div>'
-        + '<p class="meta">Day ' + day + (n > 1 ? ' to ' + (day + n - 1) : '') + '</p>'
+        + '<p class="meta">Day ' + day + (n > 1 ? ' to ' + (day + n - 1) : '')
+        + '<span data-hint>' + (cityByName(st.name) ? ' · ' + esc(cityByName(st.name).country) : '') + '</span></p>'
         + '</div>';
       day += n;
     });
@@ -1001,7 +1015,11 @@
       var x = d.stops[Number(row.dataset.stopRow)];
       if (!x) return;
       var name = row.querySelector('[data-f="name"]').value.trim();
-      if (name !== x.name) { x.lat = null; x.lng = null; }   // a new name needs a new pin
+      var city = cityByName(name);
+      if (city) {
+        name = city.name;                                     // "kyoto" -> "Kyoto"
+        if (name !== x.name || x.lat == null) { x.lat = city.lat; x.lng = city.lng; }
+      } else if (name !== x.name) { x.lat = null; x.lng = null; }   // a new name needs a new pin
       x.name = name;
       x.days = Math.max(1, Number(row.querySelector('[data-f="days"]').value) || 1);
       x.zone = row.querySelector('[data-f="zone"]').value;
@@ -1367,6 +1385,19 @@
   };
 
   // ---------- Events ----------
+  app.addEventListener('input', function (ev) {
+    var f = ev.target;
+    if (!f.matches || !f.matches('[data-stop-row] [data-f="name"]')) return;
+    var row = f.closest('[data-stop-row]'), city = cityByName(f.value);
+    var hint = row.querySelector('[data-hint]');
+    if (hint) hint.textContent = city ? ' · ' + city.country : '';
+    if (!city) return;
+    var sel = row.querySelector('[data-f="zone"]');
+    var has = [].some.call(sel.options, function (o) { return o.value === city.zone; });
+    if (!has) sel.insertAdjacentHTML('afterbegin', '<option>' + esc(city.zone) + '</option>');
+    sel.value = city.zone;
+  });
+
   app.addEventListener('change', function (ev) {
     var f = ev.target.closest('#photoIn');
     if (!f || !f.files || !f.files[0]) return;
