@@ -874,19 +874,20 @@
   }
 
   // ---------- Getting between plans: Google Routes, with your Maps key ----------
-  // Walk if it's a short walk; otherwise the train in Japan and a car (taxi or
-  // Grab) elsewhere. Places don't move, so an answer is kept for good on the
-  // phone, and a trip costs a few dozen lookups in all.
+  // Walk if it's a short walk, otherwise a taxi or Grab. Google's API gives no
+  // train times in Japan (it answers empty), so the taxi time stands in there.
+  // Places don't move, so an answer is kept for good on the phone, and a trip
+  // costs a few dozen lookups in all.
   var LEGS = {}, routesOff = false;
   function mins(t) { var p = hhmm(t).split(':'); return Number(p[0]) * 60 + Number(p[1]); }
   function legHTML(a, b) {
     if (!a.start_time || !b.start_time || a.kind === 'travel' || b.kind === 'travel' || routesOff || !CFG.MAPS_KEY) return '';
     var from = a.title + ', ' + a.stop, to = b.title + ', ' + b.stop, key = 'leg_' + from + '>' + to;
     var leg = LEGS[key] || (kept(key) || {}).v;
-    if (!leg && !LEGS[key] && navigator.onLine) fetchLeg(key, from, to, stopByName(b.stop).zone === 'Asia/Tokyo');
+    if (!leg && !LEGS[key] && navigator.onLine) fetchLeg(key, from, to);
     if (!leg || !leg.min) return '';
     var gap = mins(b.start_time) - (mins(a.start_time) + (a.duration_min || 60));
-    var how = { WALK: 'on foot', TRANSIT: 'by train', DRIVE: 'by car' }[leg.mode];
+    var how = { WALK: 'on foot', TRANSIT: 'by train', DRIVE: 'by taxi' }[leg.mode];
     if (gap < leg.min) {
       return '<div class="status warn leg"><span class="sq"></span><span class="txt"><b>Tight.</b> ' + leg.min + ' min ' + how
         + ', but only ' + Math.max(0, gap) + ' min between them.</span></div>';
@@ -903,15 +904,14 @@
     var j = await r.json(), d = j.routes && j.routes[0] && j.routes[0].duration;
     return d ? Math.max(1, Math.round(parseInt(d, 10) / 60)) : null;
   }
-  async function fetchLeg(key, from, to, japan) {
+  async function fetchLeg(key, from, to) {
     LEGS[key] = 'loading';
     try {
       var walk = await route(from, to, 'WALK'), leg;
       if (walk != null && walk <= 20) leg = { min: walk, mode: 'WALK' };
       else {
-        var ride = await route(from, to, japan ? 'TRANSIT' : 'DRIVE');
-        if (ride == null && japan) ride = await route(from, to, 'DRIVE'), japan = false;
-        leg = ride != null ? { min: ride, mode: japan ? 'TRANSIT' : 'DRIVE' } : walk != null ? { min: walk, mode: 'WALK' } : null;
+        var ride = await route(from, to, 'DRIVE');
+        leg = ride != null ? { min: ride, mode: 'DRIVE' } : walk != null ? { min: walk, mode: 'WALK' } : null;
       }
       if (!leg) throw new Error('no route');
       LEGS[key] = leg; keep(key, leg);
