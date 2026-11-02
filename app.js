@@ -406,6 +406,10 @@
 
   // ---------- Icons, on an 8 x 8 grid like the rest of the art ----------
   var ICONS = {
+    share: ['...##...','..####..','.#.##.#.','...##...','##.##.##','#......#','#......#','########'],
+    dotsv: ['...##...','...##...','........','...##...','...##...','........','...##...','...##...'],
+    dotsh: ['........','........','........','##.##.##','##.##.##','........','........','........'],
+    plussq:['########','#......#','#..##..#','#.####.#','#.####.#','#..##..#','#......#','########'],
     sun:   ['...#....','.#.#.#..','..###...','#######.','..###...','.#.#.#..','...#....','........'],
     part:  ['#.#.....','.#......','#.#.##..','...####.','..######','.#######','........','........'],
     cloud: ['........','...##...','..####..','.######.','########','########','........','........'],
@@ -718,7 +722,7 @@
         + '<span class="pixel" style="font-size:16px">' + esc(t.name) + '</span>'
         + '<span class="meta">' + (t.owner_id === S.user.id ? 'You own this' : 'Family trip') + '</span></button>';
     }).join('');
-    app.innerHTML = '<div class="screen">' + headerHTML() + offlineBanner()
+    app.innerHTML = '<div class="screen">' + headerHTML() + offlineBanner() + installBanner()
       + (S.notice ? '<p class="notice">' + esc(S.notice) + '</p>' : '')
       + '<div class="body">'
       + (list
@@ -755,7 +759,7 @@
       : ideasHTML();
     app.innerHTML = '<div class="screen trip">' + headerHTML()
       + (isSecretAdmin() ? '<div class="adminbar">Admin tools on</div>' : '')
-      + offlineBanner()
+      + offlineBanner() + installBanner()
       + '<div class="hub"><div class="tabbar' + (moved ? ' moved' : '') + '" role="tablist" style="--n:' + TABS.length + ';--i:' + at + ';--from:' + S.lastTabAt + '">' + tabs + '</div></div>'
       + '<div class="body' + (moved ? ' page' + (at < S.lastTabAt ? ' from-left' : '') : '') + '">' + body + '</div>'
       + actbarHTML(true)
@@ -1098,6 +1102,7 @@
       : s.kind === 'plan' ? planSheet()
       : s.kind === 'settings' ? settingsSheet()
       : s.kind === 'push-ask' ? pushAskSheet()
+      : s.kind === 'install' ? installSheet()
       : tripSheet();
     var opening = sheetKey() !== lastSheetKey;
     return '<div class="sheet-wrap" data-act="close-bg"><div class="sheet' + (opening ? ' opening' : '') + '" role="dialog" aria-modal="true">'
@@ -1266,6 +1271,8 @@
       + toggleRow('set-sound', 'Sound', prefs.sound)
       + '<div class="setrow"><span>Volume</span><div class="detent"><input type="range" min="0" max="10" step="1" value="' + prefs.vol + '" id="setVol" aria-label="Volume"></div></div>'
       + toggleRow('set-dog', 'Dog sounds', prefs.dog)
+      + (canInstall() ? '<hr class="hair"><span class="label">Home screen</span>'
+          + '<div class="row"><button class="btn" type="button" data-act="install-open">' + icon('plussq', 16) + 'Add Walkies to your home screen</button></div>' : '')
       + '<hr class="hair"><span class="label">Appearance</span>'
       + '<div class="seg" role="group" aria-label="Theme">' + seg + '</div>'
       + (S.tripId ? '<hr class="hair"><span class="label">Notifications</span>'
@@ -1817,6 +1824,89 @@
     var tb = document.getElementById('briefBtn');
     if (tb) tb.hidden = !sub;
   }
+  // ---------- Home screen: a stepper that shows where to tap, for the phone in hand ----------
+  // On the home screen Walkies opens full screen, works with no signal and can
+  // send the morning brief; in a browser tab it can't do the last on an iPhone.
+  var installEvt = null;   // Chrome and Edge hand us their own Install box
+  addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (S.data) render(); });
+  addEventListener('appinstalled', function () { installEvt = null; toast('Walkies is on your home screen. Open it from there.', 'success', { dog: 'yip' }); });
+  function installed() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; }
+  function phoneKind() {
+    var ua = navigator.userAgent;
+    if (/FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\//.test(ua)) return 'inapp';
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/Android/.test(ua)) return 'android';
+    return 'desktop';
+  }
+  function canInstall() { return !installed() && (phoneKind() !== 'desktop' || installEvt); }
+
+  // A small drawing of the bit of the phone to tap: rust marks the thing to tap, as it marks what's live
+  function mockBar(icons, hot) {
+    return '<div class="mock bar">' + icons.map(function (n, i) {
+      return '<span class="mk' + (i === hot ? ' hot' : '') + '">' + icon(n, 16) + '</span>'; }).join('') + '</div>';
+  }
+  function mockList(rows, hot) {
+    return '<div class="mock list">' + rows.map(function (r, i) {
+      return '<span class="mrow2' + (i === hot ? ' hot' : '') + '"><span>' + esc(r[0]) + '</span>' + (r[1] ? icon(r[1], 12) : '') + '</span>'; }).join('') + '</div>';
+  }
+  function installSteps() {
+    var k = phoneKind(), ios = k === 'ios', chromeIos = /CriOS|FxiOS|EdgiOS/.test(navigator.userAgent);
+    var done = { h: 'Open it from your home screen', p: 'Look for Rommel on the coral tile. ' + (ios ? 'Sign in once more there: the home screen app keeps its own sign-in.' : 'You stay signed in.'),
+      d: '<div class="mock tile">' + dogSVG('idle', 40, true) + '<span>Walkies</span></div>', last: true };
+    if (k === 'inapp') return [{ h: 'Open Walkies in your browser first', p: 'This opened inside another app, which can’t add it to your home screen. Tap ••• (or the compass) at the top, then Open in browser, then tap Show me again there.',
+      d: mockBar(['back', 'dotsh'], 1), last: true }];
+    if (ios) return [
+      { h: 'Tap Share', p: chromeIos ? 'It’s the square with an arrow, in the address bar at the top.' : 'It’s the square with an arrow, in Safari’s bar at the bottom. No bar? Tap ••• beside the address, then Share.',
+        d: mockBar(['back', 'send', 'share', 'menu', 'plus'], 2) },
+      { h: 'Tap Add to Home Screen', p: 'It’s further down the list. Scroll a little if you can’t see it.',
+        d: mockList([['Copy', ''], ['Add to Reading List', ''], ['Add to Home Screen', 'plussq']], 2) },
+      { h: 'Tap Add', p: 'Leave Open as Web App switched on, so it opens full screen, then tap Add at the top right.',
+        d: '<div class="mock list"><span class="mrow2"><span>Open as Web App</span><span class="mk-on"></span></span><span class="mrow2 hot right"><span>Add</span></span></div>' },
+      done];
+    if (k === 'android') return [
+      { h: 'Tap ⋮ at the top right', p: 'It’s the three dots beside the address in Chrome.', d: mockBar(['back', 'share', 'dotsv'], 2) },
+      { h: 'Tap Add to home screen', p: 'Some phones call it Install app. Scroll down the menu if it isn’t showing.',
+        d: mockList([['New tab', ''], ['Bookmarks', ''], ['Add to home screen', 'plussq']], 2) },
+      { h: 'Tap Install', p: 'If it asks, choose Install rather than Create shortcut.', d: mockList([['Cancel', ''], ['Install', '']], 1) },
+      done];
+    return [done];
+  }
+  function installSheet() {
+    var steps = installSteps(), n = Math.min(S.sheet.step || 0, steps.length - 1), st = steps[n];
+    var k = phoneKind(), native = installEvt && n === 0 && (k === 'android' || k === 'desktop');
+    return '<span class="label stepno">' + (steps.length > 1 && !native ? (n + 1) + ' of ' + steps.length : 'Home screen') + '</span>'
+      + '<h2 class="h-pixel lg">' + esc(native ? 'Put Walkies on your home screen' : st.h) + '</h2>'
+      + '<p class="meta lead">' + esc(native ? 'One tap: your phone asks, and Walkies gets its own icon.' : st.p) + '</p>'
+      + (native ? '<div class="mock tile">' + dogSVG('idle', 40, true) + '<span>Walkies</span></div>' : st.d)
+      + '<div class="row stepbar">'
+      + (n > 0 ? '<button class="btn" data-act="install-step" data-to="' + (n - 1) + '" data-sfx="back"><span class="glyph">B</span>Back</button>' : '')
+      + '<span class="spacer"></span>'
+      + (native ? '<button class="btn primary" data-act="install-native"><span class="glyph">A</span>Install Walkies</button>'
+        : st.last ? '<button class="btn primary" data-act="install-done"><span class="glyph">A</span>Got it</button>'
+        : '<button class="btn primary" data-act="install-step" data-to="' + (n + 1) + '"><span class="glyph">A</span>Next</button>')
+      + '</div>';
+  }
+  H['install-open'] = function () { S.sheet = { kind: 'install', step: 0 }; render(); };
+  H['install-step'] = function (el) { S.sheet = { kind: 'install', step: Number(el.dataset.to) }; render(); };
+  H['install-done'] = function () { remindLater('walkies_install_ask'); S.sheet = null; render(); };
+  H['install-native'] = async function () {
+    if (!installEvt) return H['install-step']({ dataset: { to: 0 } });
+    installEvt.prompt();
+    var c = await installEvt.userChoice; installEvt = null;
+    if (c && c.outcome === 'accepted') remindLater('walkies_install_ask');
+    S.sheet = null; render();
+    if (c && c.outcome !== 'accepted') toast('No worries. It’s in Settings whenever you want it.');
+  };
+  function remindLater(key) { try { localStorage.setItem(key, String(Date.now())); } catch (e) {} }
+  function askedLately(key, days) { try { return Date.now() - Number(localStorage.getItem(key) || 0) < days * 86400e3; } catch (e) { return true; } }
+  // A quiet banner, never a modal at launch (ROWMI flow 8). Not now waits two weeks.
+  function installBanner() {
+    if (!canInstall() || askedLately('walkies_install_ask', 14) || S.offline) return '';
+    return '<div class="banner install"><div class="status info"><span class="sq"></span><span class="txt"><b>Put Walkies on your home screen.</b> It opens like an app, works with no signal, and can send the morning brief.</span>'
+      + '<button class="btn" data-act="install-open">Show me</button><button class="btn ghost" data-act="install-later" data-sfx="back">Not now</button></div></div>';
+  }
+  H['install-later'] = function () { remindLater('walkies_install_ask'); render(); };
+
   // ---------- Asking for notifications: once, a few seconds in, never over a sheet ----------
   // "Not now" waits a week. Already on, blocked, or a browser that can't do it: never asked.
   function onIphoneTab() { return /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone; }
@@ -1825,7 +1915,7 @@
     var last = 0;
     try { last = Number(localStorage.getItem('walkies_push_ask') || 0); } catch (e) {}
     if (Date.now() - last < 7 * 86400e3) return;
-    if (onIphoneTab()) { S.sheet = { kind: 'push-ask', install: true }; bark('tag'); return render(); }
+    if (onIphoneTab()) { if (askedLately('walkies_install_ask', 14)) return; S.sheet = { kind: 'push-ask', install: true }; bark('tag'); return render(); }
     if (!pushSupported() || !('Notification' in window) || Notification.permission === 'denied') return;
     try {
       var reg = await navigator.serviceWorker.ready;
@@ -1839,8 +1929,9 @@
     return '<div class="state">' + dogSVG('alert', 60) + '<b>Morning briefs</b>'
       + '<p>Each morning at 7, wherever you are: the day’s plans and the weather. One a day, nothing else.</p>'
       + (install
-          ? '<p>On an iPhone they only work from the home screen. Tap Share, then Add to Home Screen, and open Walkies from there.</p>'
-            + '<button class="btn primary" data-act="push-later"><span class="glyph">A</span>Got it</button>'
+          ? '<p>On an iPhone they only work once Walkies is on your home screen. It takes four taps.</p>'
+            + '<button class="btn primary" data-act="install-open"><span class="glyph">A</span>Show me how</button>'
+            + '<button class="btn ghost" data-act="push-later" data-sfx="back">Not now</button>'
           : '<button class="btn primary" data-act="push-yes"><span class="glyph">A</span>Turn on notifications</button>'
             + '<button class="btn ghost" data-act="push-later" data-sfx="back">Not now</button>')
       + '</div>';

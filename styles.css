@@ -454,3 +454,25 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
 
 /* A button on its own in a column sizes to its label, not the column */
 .body > .btn{align-self:flex-start}
+
+/* Home screen stepper: a drawing of the bit of the phone to tap, rust on the one thing to tap */
+.label.stepno{color:var(--shell-text)}
+.meta.lead{font-size:14px; line-height:1.5; margin-top:8px}
+.mock{margin:16px 0 4px; border:1px solid var(--border); border-radius:var(--r-outer); background:var(--surface-sunken); padding:8px}
+.mock.bar{display:flex; justify-content:space-around; align-items:center}
+.mock .mk{width:44px; height:44px; display:grid; place-items:center; color:var(--text-medium); border-radius:var(--r-inner)}
+.mock .mk.hot,.mock .mrow2.hot{color:var(--ink); outline:2px solid var(--rust); outline-offset:-2px; background:var(--rust-soft)}
+.mock.list{display:flex; flex-direction:column; gap:4px}
+.mock .mrow2{display:flex; justify-content:space-between; align-items:center; min-height:44px; padding:0 12px; border-radius:var(--r-inner); color:var(--text-medium)}
+.mock .mrow2.hot{font-weight:600}
+.mock .mrow2.right{justify-content:flex-end}
+.mock .mk-on{width:44px; height:24px; border-radius:12px; background:var(--ink); position:relative}
+.mock .mk-on::after{content:''; position:absolute; right:3px; top:3px; width:18px; height:18px; border-radius:50%; background:var(--rust)}
+.mock.tile{width:96px; margin-inline:auto; display:flex; flex-direction:column; align-items:center; gap:4px; border:0; background:none}
+.mock.tile svg{background:var(--shell); border-radius:14px; padding:12px; width:64px; height:64px; box-sizing:border-box}
+.mock.tile span{font-size:12px}
+.stepbar{margin-top:16px}
+.stepbar .spacer{flex:1}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .mock .mk.hot,:root:not([data-theme="light"]) .mock .mrow2.hot{color:var(--text-high)}}
+:root[data-theme="dark"] .mock .mk.hot,:root[data-theme="dark"] .mock .mrow2.hot{color:var(--text-high)}
+.banner.install .txt{flex:1 1 calc(100% - 40px)}
