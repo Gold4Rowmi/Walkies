@@ -119,6 +119,8 @@ b,strong{font-weight:600}
 h2,h3{margin:0}
 .ttl{font-weight:600; font-size:14px; display:block; min-width:0}
 .ttl.clip{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.inf > .ttl{align-self:stretch}   /* the column hugs its content otherwise, so a long title ran past the card */
+.h-pixel,.ttl{overflow-wrap:anywhere}
 .h-pixel{font-family:var(--f-pixel); font-weight:400; font-size:16px; line-height:1.25; -webkit-font-smoothing:none; margin:8px 0 0}
 .h-pixel.lg{font-size:24px}
 .label{font-family:var(--f-pixel); font-weight:400; font-size:16px; line-height:1.25; -webkit-font-smoothing:none; margin:8px 0 0}
