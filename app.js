@@ -510,7 +510,31 @@
       members: q[4].data, activity: q[5].data, requests: q[6].data,
       hidden: q[7].data, nearby: q[8].data
     };
+    joinAlert();
   }
+  // Someone asked to join: tell the people who can let them in, once per request
+  // on this device (Alert and the tag jingle), then the count stays on the Trip tab.
+  function joinAlert() {
+    if (!canManage() || !S.data.requests.length) return;
+    var seen = [];
+    try { seen = JSON.parse(localStorage.getItem('walkies_seen_req') || '[]'); } catch (e) {}
+    var fresh = S.data.requests.filter(function (r) { return seen.indexOf(r.id) < 0; });
+    if (!fresh.length) return;
+    toast(fresh.length === 1 ? fresh[0].display_name + ' wants to join. Let them in from the Trip tab.'
+      : fresh.length + ' people want to join. Let them in from the Trip tab.', 'new');
+    try { localStorage.setItem('walkies_seen_req', JSON.stringify(seen.concat(fresh.map(function (r) { return r.id; })).slice(-50))); } catch (e) {}
+  }
+  // Keep the trip current while the app is open: on coming back to it, and every
+  // minute. Never while a sheet is open or someone is typing, and a failed
+  // check just waits for the next one.
+  async function quietRefresh() {
+    if (!S.tripId || !S.data || S.sheet || document.visibilityState !== 'visible') return;
+    var a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    try { await loadTrip(S.tripId); render(); } catch (e) { /* offline or a blip: try again later */ }
+  }
+  setInterval(quietRefresh, 60000);
+  document.addEventListener('visibilitychange', quietRefresh);
   async function refresh() {
     try { await loadTrip(S.tripId); }
     catch (e) {
@@ -670,7 +694,9 @@
     if (S.lastTabAt == null) S.lastTabAt = at;
     var moved = at !== S.lastTabAt;
     var tabs = '<span class="ind" aria-hidden="true"></span>' + TABS.map(function (x) {
-      return '<button role="tab" aria-selected="' + (S.tab === x[0]) + '" data-act="tab" data-tab="' + x[0] + '">' + x[1] + '</button>';
+      var n = x[0] === 'trip' && canManage() ? S.data.requests.length : 0;
+      return '<button role="tab" aria-selected="' + (S.tab === x[0]) + '" data-act="tab" data-tab="' + x[0] + '"'
+        + (n ? ' aria-label="Trip, ' + n + ' waiting to join"' : '') + '>' + x[1] + (n ? '<b class="n" aria-hidden="true">' + n + '</b>' : '') + '</button>';
     }).join('');
     var body = S.tab === 'days' ? daysHTML()
       : S.tab === 'now' ? nowHTML()
@@ -1091,6 +1117,15 @@
       + '<span class="tt"><b>About Walkies</b><span>Version and credits</span></span></button>';
   }
 
+  function waitingHTML() {
+    return '<span class="label">Waiting to join (' + S.data.requests.length + ')</span><div class="people">'
+      + S.data.requests.map(function (r) {
+        return '<div class="person"><span class="ttl">' + esc(r.display_name) + '</span><div class="row">'
+          + '<button class="btn" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1">' + icon('check', 16) + 'Let in</button>'
+          + '<button class="btn" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="0" data-sfx="back">Turn away</button></div></div>';
+      }).join('') + '</div>';
+  }
+
   // Who's in, and what they can do. The owner hands out admin and can pass the trip on.
   function peopleHTML(owner) {
     var ownerId = S.data.trip.owner_id;
@@ -1116,19 +1151,14 @@
     var m = myMember(), owner = isOwner(), manage = canManage(), admin = isSecretAdmin();
     var active = S.data.members.filter(isActive).length;
     var h = '<h2 class="h-pixel lg">' + esc(S.data.trip.name) + '</h2>'
+      + (manage && S.data.requests.length ? waitingHTML() : '')
       + '<span class="label">People (' + active + ')</span>' + peopleHTML(owner);
 
     if (manage) {
       var link = location.origin + location.pathname + '?join=' + S.data.trip.invite_token;
       h += '<p class="meta">Invite link, one link for the whole trip</p><div class="note code">' + esc(link) + '</div>'
         + '<div class="row"><button class="btn" data-act="copy-invite" data-link="' + esc(link) + '">Copy link</button></div>'
-        + '<p class="meta">Join queue</p>';
-      if (!S.data.requests.length) h += '<p class="meta">Nobody waiting.</p>';
-      S.data.requests.forEach(function (r) {
-        h += '<div class="row"><span class="inf"><span class="ttl">' + esc(r.display_name) + '</span></span>'
-          + '<button class="btn icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="1" aria-label="Let ' + esc(r.display_name) + ' in" title="Approve">' + icon('check') + '</button>'
-          + '<button class="btn icon" data-act="join-decide" data-id="' + esc(r.id) + '" data-approve="0" aria-label="Turn ' + esc(r.display_name) + ' away" title="Decline">' + icon('close') + '</button></div>';
-      });
+        ;
     }
 
     if (admin) {
@@ -1439,7 +1469,9 @@
   H['join-decide'] = async function (el) {
     var r = await sb.rpc('decide_join', { p_request: el.dataset.id, p_approve: el.dataset.approve === '1' });
     if (r.error) return setErr('tErr', r.error.message);
-    toast(el.dataset.approve === '1' ? 'They are in.' : 'Not let in.', 'success');
+    var rq = S.data.requests.find(function (x) { return x.id === el.dataset.id; }), nm = rq ? rq.display_name : 'They';
+    if (el.dataset.approve === '1') toast(nm + ' is in the trip.', 'success');
+    else toast('Turned ' + nm + ' away.');
     await refresh();
   };
 

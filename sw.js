@@ -1,6 +1,6 @@
 // Walkies service worker: keeps the app shell openable, and shows push notifications.
 // Network first, so the family always sees the live plan when they have signal.
-const CACHE = 'walkies-v15';
+const CACHE = 'walkies-v16';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'cities.js', 'places.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
