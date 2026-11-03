@@ -269,6 +269,50 @@ begin
   end if;
 end $$;
 
+-- 28. Ideas follow their stop when the plan changes; Back to ideas.
+do $$
+declare
+  owner_id uuid := gen_random_uuid(); trip uuid; a uuid; b uuid; c uuid; d uuid; r jsonb; failed text := '';
+begin
+  insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+  values (owner_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'o13@test.invalid', now(), now());
+  perform set_config('request.jwt.claims', json_build_object('sub', owner_id)::text, true);
+  trip := create_trip('Test trip', 'Owner');
+  perform set_trip_plan(trip, '2027-04-12', '[{"name":"Tokyo","days":4,"lat":35.68,"lng":139.65},{"name":"Kyoto","days":3,"lat":35.01,"lng":135.77},{"name":"Osaka","days":2,"lat":34.69,"lng":135.50}]');
+  r := add_idea(trip,'idea','USJ','Kyoto','','','walk',0,null,60,'',false); a := (r->>'id')::uuid;
+  update ideas set lat = 34.665, lng = 135.432 where id = a;
+  perform place_idea(a, 6, '10:00', 60);                      -- Kyoto's 2nd day
+  r := add_idea(trip,'idea','Tokyo thing','Tokyo','','','walk',0,null,60,'',false); b := (r->>'id')::uuid;
+  perform place_idea(b, 2, '09:00', 60);                      -- Tokyo's 2nd day
+  r := add_idea(trip,'idea','Kyoto no pin','Kyoto','','','walk',5,null,60,'',false); c := (r->>'id')::uuid;   -- maybe Day 5
+  r := add_idea(trip,'idea','Osaka thing','Osaka','','','walk',0,null,60,'',false); d := (r->>'id')::uuid;
+  perform place_idea(d, 8, null, 60);                         -- Osaka's 1st day
+
+  -- remove Kyoto
+  perform set_trip_plan(trip, '2027-04-12', '[{"name":"Tokyo","days":4,"lat":35.68,"lng":139.65},{"name":"Osaka","days":2,"lat":34.69,"lng":135.50}]');
+  if (select stop || ':' || day from ideas where id = a) <> 'Osaka:6' then failed := failed || ' usj=' || (select stop || ':' || day from ideas where id = a); end if;
+  if (select stop || ':' || day from ideas where id = b) <> 'Tokyo:2' then failed := failed || ' tokyo=' || (select stop || ':' || day from ideas where id = b); end if;
+  if (select stop || ':' || day from ideas where id = c) <> 'Kyoto:0' then failed := failed || ' nopin=' || (select stop || ':' || day from ideas where id = c); end if;
+  if (select stop || ':' || day from ideas where id = d) <> 'Osaka:5' then failed := failed || ' osaka=' || (select stop || ':' || day from ideas where id = d); end if;
+  if (select status from ideas where id = a) <> 'approved' then failed := failed || ' usj-unplanned'; end if;
+
+  -- swap the order: Osaka first
+  perform set_trip_plan(trip, '2027-04-12', '[{"name":"Osaka","days":2,"lat":34.69,"lng":135.50},{"name":"Tokyo","days":4,"lat":35.68,"lng":139.65}]');
+  if (select day from ideas where id = b) <> 4 then failed := failed || ' swap-tokyo=' || (select day from ideas where id = b); end if;
+  if (select day from ideas where id = d) <> 1 then failed := failed || ' swap-osaka=' || (select day from ideas where id = d); end if;
+  -- shrink Tokyo to 1 day: its 2nd-day plan comes off the day but stays planned
+  perform set_trip_plan(trip, '2027-04-12', '[{"name":"Osaka","days":2,"lat":34.69,"lng":135.50},{"name":"Tokyo","days":1,"lat":35.68,"lng":139.65}]');
+  if (select status || ':' || day from ideas where id = b) <> 'approved:0' then failed := failed || ' shrink=' || (select status || ':' || day from ideas where id = b); end if;
+
+  -- back to ideas
+  perform unplan_idea(d);
+  if (select status || ':' || day from ideas where id = d) <> 'suggested:0' then failed := failed || ' unplan'; end if;
+  perform set_booking(a, true, 'R1', '');
+  begin perform unplan_idea(a); failed := failed || ' booked-unplanned'; exception when others then null; end;
+
+  if failed <> '' then raise exception 'FAILED:%', failed; end if;
+end $$;
+
 select 'all rule tests passed' as result;
 
 rollback;

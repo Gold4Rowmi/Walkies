@@ -987,7 +987,9 @@
             + catBadge(c) + CATS[c].name + ' <b class="num">' + counts[c] + '</b></button>';
         }).join('') + '</div>' : '';
     if (S.cat) pool = pool.filter(function (d) { return catOf(d) === S.cat; });
-    return head + filter + stopNames().map(function (s) {
+    var stops = stopNames(), lost = pool.filter(function (d) { return stops.indexOf(d.stop) < 0; });
+    return head + filter + (lost.length ? '<h3 class="h-pixel">No stop</h3><p class="meta">Their stop was taken off the trip. Open one and Edit it to pick a new stop.</p>'
+      + '<div class="cards">' + lost.map(ideaCard).join('') + '</div>' : '') + stops.map(function (s) {
       var items = pool.filter(function (d) { return d.stop === s; });
       if (!items.length) return '';
       return '<h3 class="h-pixel">' + esc(s) + '</h3><div class="cards">' + items.map(ideaCard).join('') + '</div>';
@@ -1116,7 +1118,7 @@
       ? '<h2 class="h-pixel">Unscheduled</h2>'
       : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>' + weatherHTML(n);
     var pre = n > 0 && isOwner() ? '<button class="btn" data-act="preset-open">Pre-set a slot</button>' : '';
-    var planned = plannedOn(n), slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n; });
+    var planned = plannedOn(n), slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n && stopFor(n) === d.stop; });
     var items = planned.map(function (d, i) { return (i ? legHTML(planned[i - 1], d) : '') + plannedCard(d); }).join('') + slots.map(slotCard).join('');
     if (!items) {
       items = stateBlock(n === 0 ? 'Nothing waiting' : 'Nothing planned yet',
@@ -1423,7 +1425,9 @@
         + '<label class="lbl">Day<select id="dSel"' + (d.status === 'suggested' ? ' data-maybe="' + esc(d.id) + '"' : '') + '>' + dayOpts(d.day, d.stop) + '</select></label>'
         + '<label class="lbl"><span>Time <span class="dim">' + esc(tzLabel(stopByName(d.stop).zone)) + '</span></span><input id="tIn" type="time" value="' + hhmm(d.start_time) + '"></label>'
         + '<label class="lbl">Min<input id="mIn" type="number" min="15" step="15" value="' + (d.duration_min || 60) + '"></label></div>'
-        + '<div class="row"><button class="btn primary" data-act="plan" data-id="' + esc(d.id) + '"><span class="glyph">A</span>' + (d.status === 'approved' ? 'Save' : 'Plan it') + '</button></div>';
+        + '<div class="row"><button class="btn primary" data-act="plan" data-id="' + esc(d.id) + '"><span class="glyph">A</span>' + (d.status === 'approved' ? 'Save' : 'Plan it') + '</button>'
+        + (d.status === 'approved' && !d.booked ? '<button class="btn" data-act="unplan" data-id="' + esc(d.id) + '" data-sfx="back">' + icon('back', 16) + 'Back to ideas</button>' : '')
+        + '</div>';
       if (d.status === 'approved') {
         h += d.booked
           ? '<div class="row"><span class="tag booked">Booked' + (d.booking_ref ? ' · ' + esc(d.booking_ref) : '') + '</span></div>'
@@ -1928,6 +1932,20 @@
 
   H['near-more'] = function (el) { var d = Number(el.dataset.day); nearShift[d] = (nearShift[d] || 0) + 1; render(); };
 
+  // Back to the pool, with Undo: it puts the plan back exactly where it was
+  H.unplan = async function (el) {
+    var d = ideaById(el.dataset.id); if (!d) return;
+    var was = { day: d.day, time: d.start_time ? hhmm(d.start_time) : null, dur: d.duration_min || 60 };
+    var r = await sb.rpc('unplan_idea', { p_idea: d.id });
+    if (r.error) return setErr('sErr', r.error.message);
+    S.sheet = null;
+    toast('Moved ' + d.title + ' back to ideas.', 'success', { undo: async function () {
+      var u = await sb.rpc('place_idea', { p_idea: d.id, p_day: was.day, p_time: was.time, p_dur: was.dur });
+      if (u.error) toast(u.error.message, 'error');
+      await refresh();
+    } });
+    await refresh();
+  };
   H['cat-filter'] = function (el) { S.cat = el.dataset.cat || null; render(); };
   H['sugg-hide'] = async function (el) {
     check(await sb.from('hidden_suggestions').insert({ trip_id: S.tripId, stop: el.dataset.stop, title: el.dataset.title }));
