@@ -593,3 +593,5 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
   .pips i{width:8px; height:8px; border-radius:1px}
   .dayrow.on .pips i{box-shadow:0 0 0 1px var(--on-ink)}
 }
+/* Rommel in a travel hat on the Now path: the brims may run past the rail */
+.tl-rail svg.hat{overflow:visible; padding:2px}

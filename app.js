@@ -222,6 +222,42 @@
     return '<svg class="px" width="' + size + '" height="' + size + '" viewBox="' + (ring ? '-1 -1 12 12' : '0 0 10 10') +
       '" aria-hidden="true">' + dog(pose, 0, 0, ring) + '</svg>';
   }
+  // ---------- Easter egg: Rommel's travel hats ----------
+  // On the Now path he wears the hat of the country he's walking in: a kabuto
+  // in Japan, a nón lá in Vietnam. Ten countries, drawn on his own grid
+  // (16 x 18 units, his 10 x 10 at 3, 7) from the brand palette. Nothing
+  // announces it; the hat's name is in the tooltip.
+  var HAT_ACC = {"k":"#16181D","d":"#5B6270","G":"#C9CED6","w":"#FFFFFF","s":"#F1C79E","S":"#B96F28","b":"#7A3C0D","r":"#C0352F","g":"#F4C430","o":"#D9893B","m":"#2FC7A1","l":"#9BCB3B","p":"#F0548C"};
+  var HATS = {"indonesia":{"name":"Frangipani","country":"Indonesia","at":[8,-2],"rows":[".ww.","wggw","wwgw",".wwl"]},"new-zealand":{"name":"Beanie","country":"New Zealand","at":[0,-3],"rows":["....ww....","....ww....","..mmmmmm..",".mmmmmmmm.","wwwwwwwwww"]},"japan":{"name":"Kabuto","country":"Japan","at":[-1,-4],"rows":["..g......g..","...g.kk.g...","....gkkg....","..kkkggkkk..",".kkddkkddkk.","kkkkkkkkkkkk","rk........kr","rk........kr",".r........r."]},"china":{"name":"Lion dance head","country":"China","at":[-1,-6],"rows":[".....gg.....","...rrrrrr...","..rrrrrrrr..",".rrwkrrwkrr.",".rrrrggrrrr.",".rwwwwwwwwr.",".gggggggggg."]},"usa":{"name":"Cowboy hat","country":"USA","at":[-2,-3],"rows":["....bbbbbb....","...bbbbbbbb...","b..kkkkkkkk..b","bbbbbbbbbbbbbb"]},"thailand":{"name":"Ngob","country":"Thailand","at":[-3,-2],"rows":[".....SSSSSS.....","....SssssssS....","SssssssssssssssS",".SSSSSSSSSSSSSS."]},"uk":{"name":"Bearskin","country":"United Kingdom","at":[0,-7],"rows":["...kkkk...","..kkkkkk..",".kkdkkkkk.",".kkkkkdkk.",".kdkkkkkk.",".kkkkdkkk.",".kkkkkkkk.","kkkkkkkkkk","..........","..........","..........",".g......g.",".g......g.","..g....g..","..g....g..","...g..g...","....gg...."]},"india":{"name":"Marigold garland","country":"India","at":[0,6],"rows":["o........o",".o......o.",".go....og.","..ogogog..","....gg...."]},"vietnam":{"name":"Nón lá","country":"Vietnam","at":[-3,-5],"rows":[".......ss.......","......ssss......",".....ssSSss.....","....ssssssss....","...sSssssssSs...",".SSSSSSSSSSSSSS."]},"fiji":{"name":"Flower crown","country":"Fiji","at":[-1,-1],"rows":[".p...r...p..","pgplrgrlpgp.",".p...r...p.."]}};
+  var HAT_COUNTRY = { 'Indonesia': 'indonesia', 'New Zealand': 'new-zealand', 'Japan': 'japan', 'China': 'china',
+    'United States': 'usa', 'USA': 'usa', 'Thailand': 'thailand', 'United Kingdom': 'uk', 'India': 'india', 'Vietnam': 'vietnam', 'Fiji': 'fiji' };
+  var HAT_ZONE = [[/^Asia\/Tokyo$/, 'japan'], [/^Asia\/(Ho_Chi_Minh|Saigon)$/, 'vietnam'], [/^Asia\/(Jakarta|Makassar|Jayapura|Pontianak)$/, 'indonesia'],
+    [/^Pacific\/(Auckland|Chatham)$/, 'new-zealand'], [/^Asia\/(Shanghai|Chongqing|Harbin|Urumqi)$/, 'china'],
+    [/^(America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Detroit|Boise|Indiana\/.+|Kentucky\/.+|North_Dakota\/.+)|Pacific\/Honolulu)$/, 'usa'],
+    [/^Asia\/Bangkok$/, 'thailand'], [/^Europe\/London$/, 'uk'], [/^Asia\/(Kolkata|Calcutta)$/, 'india'], [/^Pacific\/Fiji$/, 'fiji']];
+  function hatFor(stop) {
+    var c = cityByName(stop);
+    if (c) return HAT_COUNTRY[c.country] || null;   // a known city outside the ten: no hat
+    var z = (stopByName(stop) || {}).zone || '';
+    for (var i = 0; i < HAT_ZONE.length; i++) if (HAT_ZONE[i][0].test(z)) return HAT_ZONE[i][1];
+    return null;
+  }
+  // Rommel in a hat, cropped to what's drawn, at a whole number of px per unit
+  function hatDogSVG(pose, id, unit) {
+    var hat = HATS[id], W = 16, H = 18, g = [], x, y;
+    for (y = 0; y < H; y++) { g.push([]); for (x = 0; x < W; x++) g[y].push(null); }
+    (POSES[pose] || POSES.idle).forEach(function (r, yy) { for (var xx = 0; xx < 10; xx++) if (r[xx] !== '.') g[yy + 7][xx + 3] = DOG_C[r[xx]]; });
+    hat.rows.forEach(function (r, yy) { for (var xx = 0; xx < r.length; xx++) if (r[xx] !== '.') g[yy + hat.at[1] + 7][xx + hat.at[0] + 3] = HAT_ACC[r[xx]]; });
+    var lit = function (a, b) { return a >= 0 && b >= 0 && a < W && b < H && g[b][a]; };
+    var x0 = W, y0 = H, x1 = 0, y1 = 0;
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (g[y][x]) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    var ring = isDark(), pad = ring ? 1 : 0, s = '';
+    if (ring) for (y = -1; y <= H; y++) for (x = -1; x <= W; x++)
+      if (!lit(x, y) && (lit(x - 1, y) || lit(x + 1, y) || lit(x, y - 1) || lit(x, y + 1))) s += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#ECEEF1"/>';
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (g[y][x]) s += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="' + g[y][x] + '"/>';
+    var vw = x1 - x0 + 1 + 2 * pad, vh = y1 - y0 + 1 + 2 * pad;
+    return '<svg class="px hat" width="' + vw * unit + '" height="' + vh * unit + '" viewBox="' + (x0 - pad) + ' ' + (y0 - pad) + ' ' + vw + ' ' + vh + '" aria-hidden="true">' + s + '</svg>';
+  }
   function paintLock() {
     var el = document.getElementById('aboutLock');
     if (!el) return;
@@ -1223,13 +1259,15 @@
       }
     }
     var pose = running ? 'idle' : started ? 'sleepy' : 'alert';
+    var hat = hatFor(stop);
 
     var rows = items.map(function (d, i) {
       var st = mins(d.start_time), en = st + (d.duration_min || 60);
       var past = running && now >= en;
       var here = i === at;
       var rail = here
-        ? '<span class="tl-rail">' + dogSVG(pose, 30) + '</span>'
+        ? (hat ? '<span class="tl-rail" title="' + esc(HATS[hat].name + ', for ' + HATS[hat].country) + '">' + hatDogSVG(pose, hat, 3) + '</span>'
+               : '<span class="tl-rail">' + dogSVG(pose, 30) + '</span>')
         : '<span class="tl-rail"><span class="tl-dot' + (past ? ' done' : '') + '"></span></span>';
       return rail + '<button class="card tl-item' + (past ? ' past' : '') + (here ? ' here' : '') + '" data-act="open-idea" data-id="' + esc(d.id) + '">'
         + '<span class="inf"><span class="tl-time">' + hhmm(d.start_time) + '</span>'
