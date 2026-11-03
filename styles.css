@@ -595,3 +595,6 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
 }
 /* Rommel in a travel hat on the Now path: the brims may run past the rail */
 .tl-rail svg.hat{overflow:visible; padding:2px}
+
+/* The map handles its own pinch and pan; the browser does nothing with touches on it */
+#mapbox{touch-action:none; overscroll-behavior:contain}

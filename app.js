@@ -1327,7 +1327,8 @@
     if (!pinned.length) { box.innerHTML = '<p class="empty">No stop has a place on the map yet.</p>'; return; }
     box.innerHTML = '';
     var pts = pinned.map(function (st) { return { lat: Number(st.lat), lng: Number(st.lng) }; });
-    mapObj = new google.maps.Map(box, { mapTypeControl: false, streetViewControl: false, fullscreenControl: false });
+    // greedy: the map takes every touch on it, so a pinch zooms the map, never the page
+    mapObj = new google.maps.Map(box, { mapTypeControl: false, streetViewControl: false, fullscreenControl: false, gestureHandling: 'greedy' });
     var bounds = new google.maps.LatLngBounds();
     pinned.forEach(function (st, i) {
       new google.maps.Marker({ position: pts[i], map: mapObj, label: String(i + 1), title: st.name });
@@ -1350,6 +1351,11 @@
     mapObj.fitBounds(bounds, 32);
   }
 
+  // iPhone Safari still zooms the whole page on a pinch that starts over the
+  // map; its own gesture events can be stopped, there only.
+  ['gesturestart', 'gesturechange'].forEach(function (t) {
+    document.addEventListener(t, function (e) { if (e.target.closest && e.target.closest('#mapbox')) e.preventDefault(); }, { passive: false });
+  });
   // A category square as an image for the map: the same colour, icon and frame as the badge
   function catPinURL(c, css) {
     var light = c === 'nightlife' || c === 'travel';
