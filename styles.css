@@ -488,10 +488,11 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
   /* A day's header: what and where on the left, its action on the right */
   .dayhead{display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"t a" "w a"; column-gap:16px; row-gap:4px; align-items:center;
     padding-bottom:16px; border-bottom:1px solid var(--border)}
-  .dayhead > h2{grid-area:t; font-size:24px}
+  .dayhead > h2{grid-area:t; font-size:24px; white-space:nowrap}
+  .dayhead > .dayacts{flex-wrap:wrap}
   .dayhead > h2 .meta{display:block; margin-top:8px}
   .dayhead > .wx{grid-area:w}
-  .dayhead > .btn{grid-area:a}
+  .dayhead > .btn,.dayhead > .dayacts{grid-area:a; justify-content:flex-end}
 
   /* Ideas as photo cards: the picture is how people pick */
   .t-ideas .cards{grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px}
