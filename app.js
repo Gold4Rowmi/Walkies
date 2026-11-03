@@ -1115,9 +1115,7 @@
     var head = n === 0
       ? '<h2 class="h-pixel">Unscheduled</h2>'
       : '<h2 class="h-pixel">' + dayLabel(n) + '<br><span class="meta">' + esc(stopFor(n)) + ' · ' + esc(tzLabel(stopByName(stopFor(n)).zone)) + ' local time</span></h2>' + weatherHTML(n);
-    var pre = n > 0 ? '<span class="row dayacts">'
-      + '<button class="btn" data-act="share-day" data-day="' + n + '">' + icon('send', 16) + 'Send this day</button>'
-      + (isOwner() ? '<button class="btn" data-act="preset-open">Pre-set a slot</button>' : '') + '</span>' : '';
+    var pre = n > 0 && isOwner() ? '<button class="btn" data-act="preset-open">Pre-set a slot</button>' : '';
     var planned = plannedOn(n), slots = S.data.ideas.filter(function (d) { return d.status === 'suggested' && d.day === n; });
     var items = planned.map(function (d, i) { return (i ? legHTML(planned[i - 1], d) : '') + plannedCard(d); }).join('') + slots.map(slotCard).join('');
     if (!items) {
@@ -1924,30 +1922,6 @@
 
   H['near-more'] = function (el) { var d = Number(el.dataset.day); nearShift[d] = (nearShift[d] || 0) + 1; render(); };
 
-  // A day as plain text for the family chat: times, names, categories, links.
-  function dayText(n) {
-    var st = stopFor(n), dt = dayDate(n), list = plannedOn(n), wk = 'wx_' + st + '_' + iso(dt), w = (WX[wk] && WX[wk].hi != null) ? WX[wk] : (kept(wk) || {}).v;
-    var out = ['Day ' + n + ' · ' + WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] + ' · ' + st];
-    if (w && w.hi != null) out.push((w.usual ? 'Usually ' : wxWord(w.code) + ', ') + Math.round(w.hi) + '° / ' + Math.round(w.lo) + '°');
-    out.push('');
-    if (!list.length) out.push('Nothing planned yet.');
-    list.forEach(function (d) {
-      var c = catOf(d);
-      out.push((d.start_time ? hhmm(d.start_time) : 'Any time') + '  ' + d.title + (c ? ' (' + CATS[c].name + ')' : '') + (d.booked ? ' · booked' + (d.booking_ref ? ' ' + d.booking_ref : '') : ''));
-      if (d.link) out.push('       ' + d.link);
-    });
-    out.push('', 'Walkies: ' + location.origin + location.pathname);
-    return out.join('\n');
-  }
-  H['share-day'] = async function (el) {
-    var n = Number(el.dataset.day), text = dayText(n), title = 'Day ' + n + ' · ' + stopFor(n);
-    if (navigator.share) {
-      try { await navigator.share({ title: title, text: text }); return; }
-      catch (e) { if (e && e.name === 'AbortError') return; }   // they closed the share sheet
-    }
-    try { await navigator.clipboard.writeText(text); toast('Copied ' + title + '. Paste it into the chat.', 'success'); }
-    catch (e) { toast('Couldn’t copy it here. Try again from the home screen app.', 'error'); }
-  };
   H['cat-filter'] = function (el) { S.cat = el.dataset.cat || null; render(); };
   H['sugg-hide'] = async function (el) {
     check(await sb.from('hidden_suggestions').insert({ trip_id: S.tripId, stop: el.dataset.stop, title: el.dataset.title }));
