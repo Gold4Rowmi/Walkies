@@ -1402,7 +1402,8 @@
       + '<p class="mrow">' + avatar(d.created_by) + catBadge(catOf(d), true) + '<span class="tag">' + esc(d.stop) + '</span>' + status + '</p>'
       + (d.status === 'removed' && d.archive_reason ? '<p class="meta">' + esc(d.archive_reason) + '</p>' : '')
       + (d.note ? '<div class="note">' + esc(d.note) + '</div>' : '')
-      + (d.link ? '<div class="row linkrow"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a></div>' : '');
+      + (d.link ? '<div class="row linkrow"><a class="btn" href="' + esc(d.link) + '" target="_blank" rel="noopener">' + icon('link', 16) + (srcName(d.link) === 'Booking page' ? 'Open the booking page' : 'Open in ' + esc(srcName(d.link))) + '</a>'
+        + ((d.created_by === S.user.id || canManage()) ? '<button class="btn ghost" data-act="link-fix" data-id="' + esc(d.id) + '">Fix link</button>' : '') + '</div>' : '');
 
     if (d.status !== 'removed' && (mine || manage)) {
       h += '<div class="upl">'
@@ -1461,11 +1462,22 @@
   function catOpts(sel) {
     return CAT_ORDER.map(function (c) { return '<option value="' + c + '"' + (c === sel ? ' selected' : '') + '>' + CATS[c].name + '</option>'; }).join('');
   }
+  // Paste and Clear for a link box, and a Google Maps search for the place, to
+  // copy the right link from (Share, Copy link) and come back with it.
+  function linkTools(id, find) {
+    return '<div class="row linktools">'
+      + '<button class="btn" type="button" data-act="link-paste" data-for="' + id + '">Paste</button>'
+      + '<button class="btn ghost" type="button" data-act="link-clear" data-for="' + id + '" data-sfx="back">Clear</button>'
+      + (find ? '<a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(find) + '" target="_blank" rel="noopener">' + icon('link', 16) + 'Find on Google Maps</a>' : '')
+      + '</div>';
+  }
   function editSheet(d) {
     if (!d) return '<p class="err">That idea is gone.</p>';
     return '<h2 class="h-pixel lg">Edit</h2>'
       + '<label class="lbl">Title<input id="eTitle" value="' + esc(d.title) + '"></label>'
-      + '<label class="lbl">Link<input id="eLink" value="' + esc(d.link) + '"></label>'
+      + '<label class="lbl">Link<input id="eLink" value="' + esc(d.link) + '" inputmode="url" autocomplete="off"></label>'
+      + linkTools('eLink', d.title + ' ' + d.stop)
+      + '<p class="meta" id="eLinkMsg" aria-live="polite"></p>'
       + '<label class="lbl">Stop<select id="eStop">' + stopOpts(d.stop) + '</select></label>'
       + '<label class="lbl">Category<select id="eCat">' + catOpts(catOf(d)) + '</select></label>'
       + (d.day > 0 ? '<p class="meta">Moving it to another stop takes it off ' + dayLabel(d.day) + '.</p>' : '')
@@ -1477,7 +1489,8 @@
 
   function addSheet(pre, day) {
     return '<h2 class="h-pixel lg">' + (pre ? 'Pre-set a slot' : 'Add to the trip') + '</h2>'
-      + '<label class="lbl">Link<input id="fLink" placeholder="Google Maps, Instagram, TikTok or airline link"></label>'
+      + '<label class="lbl">Link<input id="fLink" placeholder="Google Maps, Instagram, TikTok or airline link" inputmode="url" autocomplete="off"></label>'
+      + linkTools('fLink', '')
       + '<p class="meta" id="fLinkMsg" aria-live="polite"></p>'
       + '<label class="lbl">Title<input id="fTitle" data-suggest="place" autocomplete="off" placeholder="Name it"></label>'
       + '<div class="suggest" role="listbox"></div>'
@@ -1690,6 +1703,23 @@
   H.day = function (el) { S.day = Number(el.dataset.id); render(); };
   H['open-idea'] = function (el) { S.sheet = { kind: 'idea', id: el.dataset.id }; render(); };
   H['edit-open'] = function (el) { S.sheet = { kind: 'edit', id: el.dataset.id }; render(); };
+  // Fix link: Edit, with the link box selected so a paste replaces it
+  H['link-fix'] = function (el) {
+    S.sheet = { kind: 'edit', id: el.dataset.id }; render();
+    var f = document.getElementById('eLink'); if (f) { f.focus(); f.select(); }
+  };
+  H['link-paste'] = async function (el) {
+    var f = document.getElementById(el.dataset.for); if (!f) return;
+    try {
+      var t = (await navigator.clipboard.readText() || '').trim();
+      if (!t) return toast('Nothing to paste. Copy the link first.');
+      f.value = t; f.dispatchEvent(new Event('input', { bubbles: true }));
+    } catch (e) { f.focus(); f.select(); toast('Paste it into the box instead.'); }
+  };
+  H['link-clear'] = function (el) {
+    var f = document.getElementById(el.dataset.for); if (!f) return;
+    f.value = ''; f.dispatchEvent(new Event('input', { bubbles: true })); f.focus();
+  };
   function closeSheet() {
     if (S.sheet && S.sheet.kind === 'push-ask') { try { localStorage.setItem('walkies_push_ask', String(Date.now())); } catch (e) {} }
     S.sheet = null; render();
@@ -2381,20 +2411,24 @@
     var r = Math.PI / 180, x = (b.lng - a.lng) * r * Math.cos((a.lat + b.lat) * r / 2), y = (b.lat - a.lat) * r;
     return Math.sqrt(x * x + y * y) * 6371;
   }
+  // Works for Add (fLink) and Edit (eLink). In Add the name and stop fill in;
+  // in Edit nothing the person wrote changes on its own: it offers the name.
   app.addEventListener('input', function (ev) {
-    if (ev.target.id !== 'fLink') return;
+    var id = ev.target.id;
+    if (id !== 'fLink' && id !== 'eLink') return;
+    var p = id[0], editing = p === 'e';
     clearTimeout(linkTimer);
-    var link = cleanLink(ev.target.value), msg = document.getElementById('fLinkMsg');
+    var link = cleanLink(ev.target.value), msg = document.getElementById(p + 'LinkMsg');
     if (!MAPS_RE.test(link)) { if (msg) msg.textContent = ''; return; }
     if (msg) msg.textContent = 'Reading the link…';
     linkTimer = setTimeout(async function () {
       var r = null;
       try { r = await sb.functions.invoke('preview', { body: { resolve: link } }); } catch (e) {}
-      if (cleanLink((document.getElementById('fLink') || {}).value) !== link) return;   // they've moved on
-      var d = r && !r.error && r.data, t = document.getElementById('fTitle'), sel = document.getElementById('fStop');
-      if (!d || !d.title) { if (msg) msg.textContent = 'Couldn’t read a place name from that link. Type the title below.'; return; }
-      if (t && (!t.value || t.dataset.auto)) { t.value = d.title; t.dataset.auto = '1'; }
-      var note = 'From Google Maps: ' + d.title;
+      if (cleanLink((document.getElementById(id) || {}).value) !== link) return;   // they've moved on
+      var d = r && !r.error && r.data, t = document.getElementById(p + 'Title'), sel = document.getElementById(p + 'Stop');
+      if (!d || !d.title) { if (msg) msg.textContent = 'Couldn’t read a place name from that link.' + (editing ? '' : ' Type the title below.'); return; }
+      if (!editing && t && (!t.value || t.dataset.auto)) { t.value = d.title; t.dataset.auto = '1'; }
+      var note = 'From Google Maps: ' + d.title, offer = editing && t && fold(t.value) !== fold(d.title);
       if (sel && d.lat != null) {
         var best = null;
         stopNames().forEach(function (n) {
@@ -2404,11 +2438,19 @@
           if (!best || dist < best.dist) best = { name: n, dist: dist };
         });
         if (best && best.dist <= 150) {
-          if (sel.value !== best.name) { sel.value = best.name; sel.dispatchEvent(new Event('change', { bubbles: true })); }
-          note += ', near ' + best.name;
-        } else if (best) note += '. It isn’t near any stop on the trip, so check the stop.';
+          if (!editing && sel.value !== best.name) { sel.value = best.name; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+          note += ', near ' + best.name + (editing && sel.value !== best.name ? '. This idea is under ' + sel.value + ', so check the stop' : '');
+        } else if (best) note += '. It isn’t near any stop on the trip, so check the stop';
       }
-      if (msg) msg.textContent = note + '.';
+      if (msg) {
+        msg.textContent = note + '.';
+        if (offer) {
+          var b = document.createElement('button');
+          b.className = 'btn ghost'; b.type = 'button'; b.textContent = 'Use this name';
+          b.addEventListener('click', function () { t.value = d.title; b.remove(); SFX.tick(); });
+          msg.appendChild(b);
+        }
+      }
       SFX.tick && SFX.tick();
     }, 350);
   });

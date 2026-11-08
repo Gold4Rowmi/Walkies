@@ -598,3 +598,6 @@ dialog.dialog .row{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wr
 
 /* The map handles its own pinch and pan; the browser does nothing with touches on it */
 #mapbox{touch-action:none; overscroll-behavior:contain}
+/* Link box helpers: Paste, Clear, Find on Google Maps, right under the box */
+.linktools{margin-top:-4px; gap:8px; flex-wrap:wrap}
+#eLinkMsg .btn,#fLinkMsg .btn{margin-left:8px; vertical-align:middle}
